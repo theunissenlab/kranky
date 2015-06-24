@@ -12,7 +12,7 @@ stim list
 set ao_freq 40000
 set ai_freq 32000
 set n_trials 150
-set stim_order 0
+set stim_order 2
 set ramp_time 0
 set attenuation 15
 set attenuation2 0
