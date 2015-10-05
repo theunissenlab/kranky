@@ -5,18 +5,34 @@ from bitarray import bitarray
 import os
 import wave
 import datetime
+import zmq
+
+import soundout_tools as so
+
+
 
 stimuli_dir = '/home/jknowles/data/doupe_lab/stimuli/'
 
-class PlaybackBuffer(object):
-    pass
+class PlaybackController(object):
+    def __init__(self):
+        self.pcm = None
+        self.framesize =1024
+
+    def connect_to_pcm(self, cardidx):
+        self.pcm = aa.PCM(type=aa.PCM_PLAYBACK, mode=aa.PCM_NORMAL, card='plughw:%d,0'%cardidx)
+        self.frame_size = 320
+        
+
+        pass
+
+    def 
 
 default_params = {}
 default_params['ao_freq'] = 44100
 default_params['ai_freq'] = 32000
 default_params['n_trials'] = 1000
 default_params['stim_order'] = 2
-default_params['trigger_length'] = 100
+default_params['trigger_length'] = 1 # ms
 
 
 def load_rc_file(fname):
@@ -173,34 +189,44 @@ def run_playback(params, stimset, playback_plan):
     # setup connection to daq
     # setup trial buffer
     # begin iterating thru trials of playback plan.
-    ktrial = 0
-    Playing = True
-    pb = PlaybackBuffer()
-    try: 
-        while Playing:
-            if pb.tb_ready:
-                # generate trigger and load stimulus
-                # add trial to tb
-                pass
-            if pb.rbuffer():
-                # read messages from buffer
-                # write messages to .rec file
-                pass
-            pass
-        # write exit note to .rec file
+
+    zmq_host = "localhost"
+    zmq_port = "5556"
+    zmq_context = zmq.Context()
+    zmq_socket = zmq_context.socket(zmq.PUSH)
+    zmq_socket.bind("tcp://localhost:5556")
+    # import ipdb; ipdb.set_trace()
+    zmq_socket.send("Hello")
+
+    # ktrial = 0
+    # Playing = True
+    # pb = PlaybackBuffer()
+    # try: 
+    #     while Playing:
+    #         if pb.tb_ready:
+    #             # generate trigger and load stimulus
+    #             # add trial to tb
+    #             pass
+    #         if pb.rbuffer():
+    #             # read messages from buffer
+    #             # write messages to .rec file
+    #             pass
+    #         pass
+    #     # write exit note to .rec file
 
             
-    except Exception as e:
-        # empty .rec buffer 
-        # close rec file with error note
-        raise(e) 
-    pass
+    # except Exception as e:
+    #     # empty .rec buffer 
+    #     # close rec file with error note
+    #     raise(e) 
+    # pass
+
 
 
 if __name__=="__main__":
     rc_fname = "./test.rc"
     params, stimset = load_rc_file(rc_fname)
     playback_plan = generate_playback_plan(params,stimset)
-    write_playback_audio_file(params, stimset, playback_plan, 'test.wav')
-    # run_playback(params, stimset, playback_plan)
+    # write_playback_audio_file(params, stimset, playback_plan, 'test.wav')
+    run_playback(params, stimset, playback_plan)
 
