@@ -11,7 +11,7 @@ stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1flipped.raw
 stim list
 set ao_freq 40000
 set ai_freq 32000
-set n_trials 150
+set n_trials 10
 set stim_order 2
 set ramp_time 0
 set attenuation 15

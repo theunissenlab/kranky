@@ -29,7 +29,7 @@ except:
 	
 
 #functions
-def playwf(stopsig, cardidx, filename, filetype, rate, pulse = False, pulse_type = "high"):
+def playwf(stopsig, pcm, trial_data):
 	# try:
  #   		mixer.setvolume(100)
 	# except:
@@ -39,35 +39,10 @@ def playwf(stopsig, cardidx, filename, filetype, rate, pulse = False, pulse_type
 	# except:
 	# 	pass
 
-	pcm = aa.PCM(type=aa.PCM_PLAYBACK, mode=aa.PCM_NORMAL, card='plughw:%d,0'%cardidx)
-	frame_size = 320
-	if filetype == '.wav':
-		song=wave.open(filename)
-		"""takes a wave file object and plays it"""
-		# rate = song.getframerate()
-		if pulse:
-			nchannels=2
-			pcm.setperiodsize(frame_size)
-		else:
-			nchannels=1
-			pcm.setperiodsize(frame_size)
-		length=song.getnframes()
-		# 8bit is unsigned in wav files
-		pcm.setchannels(nchannels)
-		pcm.setrate(rate)
-		if song.getsampwidth() == 1:
-			pcm.setformat(aa.PCM_FORMAT_U8)
-		# Otherwise we assume signed data, little endian
-		elif song.getsampwidth() == 2:
-			pcm.setformat(aa.PCM_FORMAT_S16_LE)
-		elif song.getsampwidth() == 3:
-			pcm.setformat(aa.PCM_FORMAT_S24_LE)
-		elif song.getsampwidth() == 4:
-			pcm.setformat(aa.PCM_FORMAT_S32_LE)
-		else:
-			raise ValueError('Unsupported format')
-		data=song.readframes(frame_size)
-		while data and stopsig.value==0:
+
+
+	data=song.readframes(frame_size)
+	while data and stopsig.value==0:
 			if pulse:
 				# x = np.fromstring(data, np.int16)
 				# x = np.expand_bebbdims(x,axis=1)
