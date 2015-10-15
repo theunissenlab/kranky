@@ -8,26 +8,18 @@ import datetime
 import time
 import Queue
 import threading
-import alsaaudio as aa
+# import alsaaudio as aa
 
 
-from lib import zmq_tools as zt
+# from lib import zmq_tools as zt
 from lib.fifo import FifoFileBuffer
-stimuli_dir = '/home/jknowles/data/doupe_lab/stimuli/'
 trial_queue_size = 2 # FifoFileBuffernumber of trials to load into queue
 data_queue_size = 10
 dtype_out = np.int32;
 scale_factor = 2**31-1
 channel_def = {'ao0': 0, 
             'trigger': 1}
-                
-default_params = {}
-default_params['ao_freq'] = 24000
-default_params['ai_freq'] = 30000
-default_params['n_trials'] = 100
-default_params['stim_order'] = 2
-default_params['trigger_length'] = 1 # ms
-        
+                 
 runflag = False
 playflag = False
 
@@ -82,16 +74,16 @@ class PlaybackController(object):
 
 
 
-def load_rc_file(fname):
+def load_rc_file(fname, stimuli_dir=None):
     params = dict(default_params)
     stimset = {}
     stimset['stims'] = []
     with open(fname) as rcfid:
         for line in rcfid:
-            params, stimset = parse_rc_line(line, params, stimset) # returned for transparency
+            params, stimset = parse_rc_line(line, params, stimset,stimuli_dir=stimuli_dir) # returned for transparency
     return params, stimset
 
-def parse_rc_line(line, params, stimset):
+def parse_rc_line(line, params, stimset,stimuli_dir=None):
     if len(line.strip('\n'))>0:
         parts = line.strip('\n').split(' ')
         if parts[0].lower() == 'stim':
@@ -102,12 +94,12 @@ def parse_rc_line(line, params, stimset):
                     stim['name'] = os.path.basename(stim['fname'])
                     head,tail = os.path.split(os.path.dirname(stim['fname']))
                     stim['stimset'] = tail
-                    if not os.path.exists(stim['fname']):
+                    if not os.path.exists(stim['fname']) and stimuli_dir is not None:
                         stim['fname'] = os.path.join(stimuli_dir, stim['stimset'], stim['name'])
                     verify_stim(stim)
                     stimset['stims'].append(stim)
                     stimset['stims'][len(stimset['stims'])-1]['stim_idx'] = len(stimset['stims'])-1
-                elif len(parts) == 4:
+                elif len(parts) == 4 and stimuli_dir is not None:
                     stim = {}
                     stim['stimset'] = parts[2]
                     stim['name'] = parts[3]
@@ -440,11 +432,44 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
 
 
 if __name__=="__main__":
-    rc_fname = "/home/jknowles/data/doupe_lab/stimuli/exa1_physio_v3/exa1_physio_v3.rc"
-    cardidx = 0
+    # set overall default commands
+    default_params = {}
+    default_params['ao_freq'] = 24000
+    default_params['n_trials'] = 100
+    default_params['stimorder'] = 2
+    default_params['wav']=False
+    default_params['require_data']=True
+    import argparse
+    parser=argparse.ArgumentParser()
+    parser.add_argument('rc_fname')
+    parser.add_argument('-n','--n-trials',help='trials help')
+    parser.add_argument('-r','--require-data', help='force data help')
+    parser.add_argument('-d','--data-dir',help='data directory help')
+    parser.add_argument('-s','--stim-dir',help='stimulus directory help')
+    parser.add_argument('-o','--stim_order',help='stimulus directory help')
+    parser.add_argument('--wav',help='wav help')
 
-    params, stimset = load_rc_file(rc_fname)
-    params = default_params
+    args = vars(parser.parse_args())
+    rc_fname = args['rc_fname']
+    if args['stim_dir'] is not None:
+        stimuli_dir = args['stim_dir']
+    else:
+        stimuli_dir = "/home/jknowles/data/stimuli"
+    # get params and stimset from rc
+    params, stimset = load_rc_file(rc_fname,stimuli_dir=stimuli_dir)
+    # override defaults with params
+    paramsout = default_params
+    for param in params.keys():
+        paramsout[param]=params[param]
+    params=paramsout
+    # override  params with args
+    for arg in args.keys():
+        if args[arg] is not None:
+            params[arg]=args[arg]
+    import ipdb; ipdb.set_trace()
+
+
     playback_plan=generate_playback_plan(params,stimset)
+
     # write_playback_audio_file(params, stimset, playback_plan, 'test.wav')
     run_playback(cardidx, params, stimset, playback_plan, require_data = True)
