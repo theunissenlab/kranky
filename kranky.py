@@ -22,9 +22,9 @@ channel_def = {'ao0': 0,
             'trigger': 1}
                 
 default_params = {}
-default_params['ao_freq'] = 48000
-default_params['ai_freq'] = 32000
-default_params['n_trials'] = 5
+default_params['ao_freq'] = 24000
+default_params['ai_freq'] = 30000
+default_params['n_trials'] = 100
 default_params['stim_order'] = 2
 default_params['trigger_length'] = 1 # ms
         
@@ -214,13 +214,13 @@ def load_trial_data(pbc,trial,ktrial):
     data = np.vstack((stim0_wf, stim1_wf, stim2_wf, trigger0_wf))
     return data
 
-def load_intro_data(pbc, intro_length=1, intro_pulse_length=5e-3):
+def load_intro_data(pbc, intro_length=1, intro_pulse_length=10e-3):
     data = np.zeros((4,pbc.params['ao_freq']*intro_length)).astype(dtype_out)
     idx0 = 1;
     idx1 = round(float(intro_pulse_length)*pbc.params['ao_freq'])+idx0
     data[2,idx0:idx1]=1*scale_factor
     return data
-def load_end_data(pbc, end_length=1,end_pulse_length=5e-3):
+def load_end_data(pbc, end_length=1,end_pulse_length=10e-3):
     data = np.zeros((4,pbc.params['ao_freq']*end_length)).astype(dtype_out)
     # data[3,:] =-1*scale_factor
     idx0 = data.shape[1]-float(end_pulse_length)*pbc.params['ao_freq']
@@ -276,7 +276,7 @@ def trial_loader(pbc, playback_plan):
     for ktrial, trial in enumerate(playback_plan['trials']):
         if not runflag:
             return
-        print "generating trial: %d" % ktrial
+        # print "generating trial: %d" % ktrial
         trial_data = load_trial_data(pbc, trial, ktrial)
         # trial_data[0,: ]= np.random.normal(0,2**20,trial_data[0,:].shape); trial_data[0,1]=2**29
         pbc.trial_queue.put(trial_data)
@@ -310,10 +310,11 @@ def data_loader(pbc):
                 trial_data = pbc.trial_queue.get()
                 if trial_data is not "STOP":
                     trial_count += 1
-                    trial_data[0,1]=2**30
+                    print "Trial: %d" % (trial_count)
+                    # trial_data[0,1]=2**30
                     trial_data = np.reshape(trial_data,(1,np.prod(trial_data.shape)),order='F')
                     buff.write(trial_data.tostring())
-                    print "loading trial %d size (%d, %d)" % (trial_count, trial_data.shape[0], trial_data.shape[1])
+                    
                 else: # exit:  dump rest of data and pass along stop message
                     pbc.data_queue.put(buff.read())
                     # add some chunks to end
@@ -358,7 +359,7 @@ def find_data_location(data_path_root, DIR_PRE):
     DIR_NOW = os.listdir(data_path_root)
     unique = list(set(DIR_NOW)-set(DIR_PRE))
     if len(unique) > 0:
-         return data_path_root + os.pathsep + unique[0]
+         return data_path_root + unique[0]
     else:
         return None
 
@@ -371,7 +372,7 @@ def empty_que(que):
             pass
     pass
 
-def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/jknowles/science_code/GUI/Builds/Linux/build/"):
+def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/jknowles/science_code/GUI/Builds/Linux/build/", require_data = True):
     global runflag, playflag
     # open new .rec file
     # write static part of .rec
@@ -396,23 +397,27 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
     t_ao = threading.Thread(target=ao_thread, args=(pbc,))
     t_ao.start()
 
-
+    data_path = None
     try:
-        while runflag: # initially look for data directory
-            data_path=find_data_location(data_path_root, DIR_PRE)
-            if data_path is not None:
-                # now we have the dir, open new .rec.paf file and write params
-                rec_file_name = data_path + os.pathsep + "presentation.pbrec"
-                print "Found Corresponding data: %s" % data_path
-                print "Saving Rec File to: %s" % rec_file_name
-                recfid = open(rec_file_name,'w')
-                write_rec_header(recfid, pbc.params, stimset)
-                break
+        if require_data:
+            while runflag: # initially look for data directory
+                data_path=find_data_location(data_path_root, DIR_PRE)
+                if data_path is not None:
+                    # now we have the dir, open new .rec.paf file and write params
+                    rec_file_name = data_path + os.path.sep + "presentation.pbrec"
+                    print "Found Corresponding data: %s" % data_path
+                    print "Saving Rec File to: %s" % rec_file_name
+                    recfid = open(rec_file_name,'w')
+                    write_rec_header(recfid, pbc.params, stimset)
+                    break
+                if pbc.message_queue.qsize() > 3:
+                    raise Exception("AI Data Not Found! Is Ephys Running?")
         while runflag:
             # write messages to recfile as they exist
             if pbc.message_queue.qsize() > 0:
                 message = pbc.message_queue.get()
-                recfid.write(message)
+                if data_path is not None:
+                    recfid.write(message)
 
             pass
     except Exception as e:
@@ -435,11 +440,11 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
 
 
 if __name__=="__main__":
-    rc_fname = "./test.rc"
-    cardidx = 1
+    rc_fname = "/home/jknowles/data/doupe_lab/stimuli/exa1_physio_v3/exa1_physio_v3.rc"
+    cardidx = 0
 
     params, stimset = load_rc_file(rc_fname)
     params = default_params
     playback_plan=generate_playback_plan(params,stimset)
     # write_playback_audio_file(params, stimset, playback_plan, 'test.wav')
-    run_playback(cardidx, params, stimset, playback_plan)
+    run_playback(cardidx, params, stimset, playback_plan, require_data = True)
