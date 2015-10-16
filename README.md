@@ -24,8 +24,6 @@ set stim_order 2
 set ramp_time 0
 set attenuation 15
 set attenuation2 0
-#!
-
 
 ```
 
