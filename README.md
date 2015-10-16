@@ -1,12 +1,17 @@
+## Kranky
+
 Kranky is a stimulus presentation system rolled in python to control the playback of auditory stimuli in neuroscience experiments. It's originally designed to be compatiple with instructions for krank, developed in the doupe lab. 
 
 usage: 
 (see python kranky -h)
 
 
+## .rc file
 The .rc file describes the stimuli and trial parameteres.  Arguments can also be entered in the call to kranky, which override the .rc file specifications
 
-## example rc file
+
+```
+### example rc file
 stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1.raw
 stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song2.raw
 stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1flipped.raw
@@ -19,6 +24,10 @@ set stim_order 2
 set ramp_time 0
 set attenuation 15
 set attenuation2 0
+#!
+
+
+```
 
 
 Kranky accepts .wav files and .raw files where .raw are 16 bit integers.
@@ -55,5 +64,3 @@ optional arguments:
   -o STIM_ORDER, --stim_order STIM_ORDER
                         stimulus directory help
   --wav WAV             wav help
-
-
