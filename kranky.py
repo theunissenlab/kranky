@@ -8,28 +8,30 @@ import datetime
 import time
 import Queue
 import threading
-# import alsaaudio as aa
+import alsaaudio as aa
+import traceback
 
 
 # from lib import zmq_tools as zt
 from lib.fifo import FifoFileBuffer
 trial_queue_size = 2 # FifoFileBuffernumber of trials to load into queue
 data_queue_size = 10
-dtype_out = np.int32;
-scale_factor = 2**31-1
+
+
+dtype_out = np.dtype(np.int16)
+nbytes = dtype_out.itemsize
+scale_factor = 2**(8*nbytes-1)-1
 channel_def = {'ao0': 0, 
             'trigger': 1}
                  
 runflag = False
 playflag = False
 
-
-
 class PlaybackController(object):
     def __init__(self, params):
         self.params = params
         self.pcm = None
-        self.periodsize = 2**11
+        self.periodsize = 1024
         self.nchannels = 4
         self.channel_def = {'ao0': 0, 
                             'ao1': 1, 
@@ -45,12 +47,12 @@ class PlaybackController(object):
     def connect_to_pcm(self, cardidx):
         if self.pcm is not None:
             pass
-
         self.pcm = aa.PCM(type=aa.PCM_PLAYBACK, mode=aa.PCM_NORMAL, card='plughw:%d,0'%cardidx)
+        # self.pcm = aa.PCM(type=aa.PCM_PLAYBACK, mode=aa.PCM_NORMAL, card='plughw:%d,0'%cardidx)
         self.pcm.setchannels(self.nchannels)
         self.pcm.setrate(self.params['ao_freq'])
         self.pcm.setperiodsize(self.periodsize)
-        self.pcm.setformat(aa.PCM_FORMAT_S32_LE)
+        self.pcm.setformat(aa.PCM_FORMAT_S16_LE)
         
 
         
@@ -96,7 +98,6 @@ def parse_rc_line(line, params, stimset,stimuli_dir=None):
                     stim['stimset'] = tail
                     if not os.path.exists(stim['fname']) and stimuli_dir is not None:
                         stim['fname'] = os.path.join(stimuli_dir, stim['stimset'], stim['name'])
-                    verify_stim(stim)
                     stimset['stims'].append(stim)
                     stimset['stims'][len(stimset['stims'])-1]['stim_idx'] = len(stimset['stims'])-1
                 elif len(parts) == 4 and stimuli_dir is not None:
@@ -111,24 +112,34 @@ def parse_rc_line(line, params, stimset,stimuli_dir=None):
                 params[parts[1]] = int(parts[2]) ###### make this parse different formats 
     return params, stimset # for transparency
 
-def verify_stim(stim):
-    load_stim(stim)
+def verify_stim(params, stim):
+    load_stim(params, stim)
     pass
 
-def load_stim(stim):
+def load_stim(params, stim):
     if stim['fname'][-4:] == '.raw':
         fid = open(stim['fname'],'r')
-        wf = np.fromfile(fid, dtype = '>i16')
+        dt = np.dtype('int16').newbyteorder('>')
+        wf = np.fromfile(fid, dtype = dt)
         fid.close()
 
     elif stim['fname'][-4:] == '.wav':
         wfid = wave.open(stim['fname'],'r')
-        wlen = wave.getnframes()
-        wf = np.array(wfid.readframes(wlen))
+        # wlen = wave.getnframes()
+        wf = np.array(wfid.readframes(-1))
+        if wfid.getsampwidth() == 2:
+            # import ipdb; ipdb.set_trace()
+            wf = np.fromstring(str(wf), dtype=np.int16)
+        elif wfid.getsampwidth() == 4:
+            wf = np.fromstring(str(wf), dtype=np.int32)
+        else:
+            error('bytesize not supported')
+        if wfid.getframerate() != params['ao_freq']:
+            raise(Exception('Frame rate of file %s does not match ao_rate\n ao_rate=%d\n file rate=%d' % (stim['fname'], params['ao_freq'],wfid.getframerate())))
         wfid.close()
     else: 
         raise(Exception('Unknown file type'))
-    return wf
+    return wf.astype(dtype_out)
 
 
 def generate_playback_plan(params, stimset):
@@ -143,7 +154,6 @@ def generate_playback_plan(params, stimset):
     elif params['stim_order'] == 1:
         raise(Excpetion('not supported yet'))
     elif params['stim_order'] == 2: # generate randomly shuffeled order 
-
         while len(trial_list) < params['n_trials']:
             sl = np.arange(0,len(stimset['stims']))
             np.random.shuffle(sl)
@@ -192,18 +202,28 @@ def generate_trigger(params, n_samples, trial_idx = None):
     # from matplotlib import pyplot as plt; plt.plot(wf); plt.show()
     # from matplotlib import pyplot as plt;
     # plt.plot(wf[0:1000]); plt.show()
-    # import ipdb; ipdb.set_trace()
 
     return wf, high_onsets, low_onsets
 
 
 def load_trial_data(pbc,trial,ktrial):
-    stim0_wf = load_stim(trial['stim']).astype(dtype_out)
+
+    stim0_wf = load_stim(pbc.params, trial['stim']).astype(dtype_out)
+    data=np.zeros((4,len(stim0_wf)),dtype=dtype_out)
     stim1_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
     stim2_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
     trigger0_wf, hio, lowo = generate_trigger(pbc.params, len(stim0_wf), trial_idx = ktrial)
     trigger0_wf = np.multiply(trigger0_wf,1*scale_factor).astype(dtype_out)
-    data = np.vstack((stim0_wf, stim1_wf, stim2_wf, trigger0_wf))
+    
+    data[0,:]=stim0_wf
+    data[1,:]=stim1_wf
+    data[2,:]=stim1_wf
+    data[3,:]=trigger0_wf
+
+    # data = np.vstack((stim0_wf, stim1_wf, stim2_wf, trigger0_wf))
+
+    # from matplotlib import pyplot as plt; plt.plot(data.transpose()); plt.show()
+    # import ipdb; ipdb.set_trace()
     return data
 
 def load_intro_data(pbc, intro_length=1, intro_pulse_length=10e-3):
@@ -236,7 +256,7 @@ def write_playback_audio_file(params, stimset, playback_plan, output_filename):
     owfid=wave.open(output_filename,'wb')
     owfid.setnchannels(4)
     owfid.setframerate(params['ao_freq'])
-    owfid.setsampwidth(4)
+    owfid.setsampwidth(nbytes)
     lastnsamp = 0
     for ktrial, trial in enumerate(playback_plan['trials']):
         # load stimulus wf
@@ -281,8 +301,9 @@ def trial_loader(pbc, playback_plan):
     pass
 
 def data_loader(pbc):
-    chunk_length = pbc.periodsize#*pbc.nchannels
-    chunk_length_bytes = chunk_length*4  #*pbc.nchannels
+    chunk_length = pbc.periodsize*pbc.nchannels
+
+    chunk_length_bytes = chunk_length*nbytes
     buff = FifoFileBuffer()
     nsafeframes = int(float(pbc.params['ao_freq'])/chunk_length)
     global runflag, playflag
@@ -343,7 +364,7 @@ def write_rec_header(recfid, params, stimset):
     recfid.write('format: "kranky 20150622"\n')
     recfid.write('date: "%s"\n' % str(datetime.datetime.now()))
     for key in params.keys():
-        recfid.write('%s: %d\n' % (key, params[key]))
+        recfid.write('%s: %s\n' % (key, str(params[key])))
     for stim in stimset['stims']:
         recfid.write('stim[%d]: file="%s";\n' % (stim['stim_idx'], stim['fname']))
 
@@ -378,8 +399,10 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
 
     # get dir list
     DIR_PRE = os.listdir(data_path_root)
-
-    # start threads going
+    # runflag = True
+    # trial_loader(pbc,playback_plan)
+    # return None
+    #start threads going
     runflag = True
     playflag = False
     t_tl = threading.Thread(target=trial_loader, args=(pbc, playback_plan))
@@ -391,72 +414,86 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
 
     data_path = None
     try:
-        if require_data:
-            while runflag: # initially look for data directory
-                data_path=find_data_location(data_path_root, DIR_PRE)
-                if data_path is not None:
-                    # now we have the dir, open new .rec.paf file and write params
-                    rec_file_name = data_path + os.path.sep + "presentation.pbrec"
-                    print "Found Corresponding data: %s" % data_path
-                    print "Saving Rec File to: %s" % rec_file_name
-                    recfid = open(rec_file_name,'w')
-                    write_rec_header(recfid, pbc.params, stimset)
-                    break
-                if pbc.message_queue.qsize() > 3:
-                    raise Exception("AI Data Not Found! Is Ephys Running?")
+        while runflag: # initially look for data directory
+            data_path=find_data_location(data_path_root, DIR_PRE)
+            if data_path is not None:
+                # now we have the dir, open new .rec.paf file and write params
+                rec_file_name = data_path + os.path.sep + "presentation.pbrec"
+                print "Found Corresponding data: %s" % data_path
+                print "Saving Rec File to: %s" % rec_file_name
+                recfid = open(rec_file_name,'w')
+                write_rec_header(recfid, pbc.params, stimset)
+                break
+            if pbc.message_queue.qsize() > 3 and require_data:
+                raise Exception("AI Data Not Found! Is Ephys Running?")
         while runflag:
             # write messages to recfile as they exist
             if pbc.message_queue.qsize() > 0:
-                message = pbc.message_queue.get()
-                if data_path is not None:
+                message = pbc.message_queue.get(False)
+                if data_path is not None and message is not None:
                     recfid.write(message)
 
             pass
     except Exception as e:
+        traceback.print_exc()
         raise e
+    else:
+        traceback.print_exc()
     finally:
         runflag = False
         playflag = False
         try:
-            empty_que(pbc.data_queue)
-            pbc.data_queue.put("STOP", block = False)
-        except:
-            pass
-        try:
             empty_que(pbc.trial_queue)
             pbc.trial_queue.put("STOP", block = False)
+            pbc.trial_queue.mutex.release_lock()
         except:
             pass
 
+        try:
+            empty_que(pbc.data_queue)
+            pbc.data_queue.put("STOP", block = False)
+            pbc.data_queue.mutex.release_lock()
+        except:
+            pass
+        # import ipdb; ipdb.set_trace()
+        try:
+            pbc.message_queue.mutex.release_lock()
+            pass
+        except:
+            pass
+    pass
 
 
 
 if __name__=="__main__":
     # set overall default commands
     default_params = {}
-    default_params['ao_freq'] = 24000
+    default_params['ao_freq'] = 40000
     default_params['n_trials'] = 100
     default_params['stimorder'] = 2
     default_params['wav']=False
-    default_params['require_data']=True
+    default_params['require_data']=True\
+
     import argparse
     parser=argparse.ArgumentParser()
     parser.add_argument('rc_fname')
-    parser.add_argument('-n','--n-trials',help='trials help')
-    parser.add_argument('-r','--require-data', help='force data help')
-    parser.add_argument('-d','--data-dir',help='data directory help')
-    parser.add_argument('-s','--stim-dir',help='stimulus directory help')
-    parser.add_argument('-o','--stim_order',help='stimulus directory help')
-    parser.add_argument('--wav',help='wav help')
+    parser.add_argument('-c', '--cardidx',help='alsa card number', type = int)
+    parser.add_argument('-n','--n-trials',help='trials help', type=int)
+    parser.add_argument('-r','--require-data', help='require that new data be found in data dur to continue',type=int)
+    parser.add_argument('-d','--data-dir',help='directory to look for data dir from data capture software')
+    parser.add_argument('-s','--stim-dir',help='directory containing stim-sets.  If the exact directory passed in the rc file isnt found, kranky looks for the stimset here.')
+    parser.add_argument('-o','--stim-order',help='How to order the stimuli. 0=in the order provided 2=randomly interleaved')
+    parser.add_argument('--ao-freq',type=int)
+    parser.add_argument('--wav',help='write a .wav file instead of doing playback')
 
     args = vars(parser.parse_args())
     rc_fname = args['rc_fname']
     if args['stim_dir'] is not None:
         stimuli_dir = args['stim_dir']
     else:
-        stimuli_dir = "/home/jknowles/data/stimuli"
+        stimuli_dir = "/home/jknowles/data/doupe_lab/stimuli"
     # get params and stimset from rc
-    params, stimset = load_rc_file(rc_fname,stimuli_dir=stimuli_dir)
+    params, stimset = load_rc_file(rc_fname, stimuli_dir=stimuli_dir)
     # override defaults with params
     paramsout = default_params
     for param in params.keys():
@@ -466,10 +503,20 @@ if __name__=="__main__":
     for arg in args.keys():
         if args[arg] is not None:
             params[arg]=args[arg]
-    import ipdb; ipdb.set_trace()
+
+    for stim in stimset['stims']:
+        verify_stim(params, stim)
+
+    # print params
+    for key in params.keys():
+        print '%s: %s' % (key, str(params[key]))
+    if False:
+        for stim in stimset['stims']:
+            print 'stim[%d]: file="%s";' % (stim['stim_idx'], stim['fname'])
 
 
     playback_plan=generate_playback_plan(params,stimset)
-
-    # write_playback_audio_file(params, stimset, playback_plan, 'test.wav')
-    run_playback(cardidx, params, stimset, playback_plan, require_data = True)
+    if params['wav']:
+        write_playback_audio_file(params, stimset, playback_plan, 'test.wav')
+    else:
+        run_playback(params['cardidx'], params, stimset, playback_plan, require_data = params['require_data'])

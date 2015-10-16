@@ -1,8 +1,7 @@
 
 
-stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1.raw
-stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song2.raw
-stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1flipped.raw
+stim add /stimuli/exa1_motif_stimset_b_30/exa1_song_b_1.wav
+
 
 
 # stim list
