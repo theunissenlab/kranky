@@ -1,6 +1,8 @@
-Kranky is a stimulus presentation system rolled in python to control the playback of auditory stimuli in neuroscience experiments.  
+Kranky is a stimulus presentation system rolled in python to control the playback of auditory stimuli in neuroscience experiments. It's originally designed to be compatiple with instructions for krank, developed in the doupe lab. 
 
-see python kranky -h
+usage: 
+(see python kranky -h)
+
 
 The .rc file describes the stimuli and trial parameteres.  Arguments can also be entered in the call to kranky, which override the .rc file specifications
 
@@ -28,7 +30,9 @@ Kranky can also write to a wav file:
 
 
 
-Kranky is built to run on alsa (and soon NI) but is constructed in such a way that makes it easy to play out in other systems.
+Kranky is built to run on alsa (and soon NI) but is constructed in such a way that makes it easy build a ao thread to play out in other systems.
+
+
 	
 
 usage: kranky.py [-h] [-n N_TRIALS] [-r REQUIRE_DATA] [-d DATA_DIR]
@@ -53,4 +57,3 @@ optional arguments:
   --wav WAV             wav help
 
 
-  
