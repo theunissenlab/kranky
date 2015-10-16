@@ -6,7 +6,8 @@ Kranky is a stimulus presentation system rolled in python to control the playbac
 ## usage: 
 (see python kranky -h)
 
-kranky.py [-h] [-n N_TRIALS] [-r REQUIRE_DATA] [-d DATA_DIR]
+kranky.py [-h] [-n N_TRIALS] 
+[-r REQUIRE_DATA] [-d DATA_DIR]
                  [-s STIM_DIR] [-o STIM_ORDER] [--wav WAV]
                  rc_fname
 
@@ -24,7 +25,6 @@ stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1flipped.raw
 
 # stim list
 set ao_freq 40000
-set ai_freq 32000
 set n_trials 10
 set stim_order 2
 set ramp_time 0
@@ -36,11 +36,12 @@ set attenuation2 0
 
 ## stimulus files
 Kranky accepts .wav files and raw binary (.raw) are 16 bit integers. All stimuli in a presentation should have the same sampling rate, but this is enforced for .wav files.  
-
 ## .rec files
-
+.rec files save a record of the playback and capture for future analysis. kranky.py saves .pbrec files which contain all the information about the stimulus presentation as it happens. It similtaniously looks at the data coming in to write .rec from the .pbrec files.  .rec is .pbrec plus ai clock samples when the stimuli happened.
+## trigger system
 ## open ephys
-
+kranky is built to run along with a special version of open ephys.  You can download my fork here:
+https://github.com/Jeffknowles/GUI
 ## output to .wav file
 Kranky can also write to a wav file:  
 
