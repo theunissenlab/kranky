@@ -30,9 +30,14 @@ set attenuation2 0
 ```
 
 
-Kranky accepts .wav files and .raw files where .raw are 16 bit integers.
+## stimulus files
+Kranky accepts .wav files and raw binary (.raw) are 16 bit integers. All stimuli in a presentation should have the same sampling rate, but this is enforced for .wav files.  
 
+## .rec files
 
+## open ephys
+
+## output to .wav file
 Kranky can also write to a wav file:  
 
 	python kranky.py test.rc --wav
