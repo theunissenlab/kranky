@@ -362,7 +362,6 @@ def ao_thread(pbc):
 
 
 def write_rec_header(recfid, params, stimset):
-    import ipdb; ipdb.set_trace()
     recfid.write('format: "kranky 20150622"\n')
     recfid.write('date: "%s"\n' % str(datetime.datetime.now()))
     for key in params.keys():
