@@ -433,6 +433,7 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
                 message = pbc.message_queue.get(False)
                 if data_path is not None and message is not None:
                     recfid.write(message)
+                    recfid.flush()
 
             pass
     except Exception as e:
