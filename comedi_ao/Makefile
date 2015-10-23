@@ -12,13 +12,13 @@ LIBS += `pkg-config --libs plplotd`
 #LIBS += -lefence
 #LDFLAGS += -static
 
-krank_objs = scope.o common.o misc.o stim.o display.o vars.o
+krank_objs = ao_slave.o
 
 multikrank: $(krank_objs)
-	$(CC) $(LDFLAGS) -o multikrank $(krank_objs) $(LIBS)
+	$(CC) $(LDFLAGS) -o ao_slave $(krank_objs) $(LIBS)
 
 clean:
-	-rm -f multikrank *.o
+	-rm -f ao_slave
 
 install:
 	install -d $(prefix)/bin/
