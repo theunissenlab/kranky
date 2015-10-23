@@ -211,13 +211,14 @@ def load_trial_data(pbc,trial,ktrial):
     stim0_wf = load_stim(pbc.params, trial['stim']).astype(dtype_out)
     data=np.zeros((4,len(stim0_wf)),dtype=dtype_out)
     stim1_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
-    stim2_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
+    stim1_wf[0:100]=scale_factor
+    # stim2_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
     trigger0_wf, hio, lowo = generate_trigger(pbc.params, len(stim0_wf), trial_idx = ktrial)
     trigger0_wf = np.multiply(trigger0_wf,1*scale_factor).astype(dtype_out)
     
     data[0,:]=stim0_wf
     data[1,:]=stim1_wf
-    data[2,:]=stim1_wf
+    # data[2,:]=stim1_wf # this channel controls recording
     data[3,:]=trigger0_wf
 
     # data = np.vstack((stim0_wf, stim1_wf, stim2_wf, trigger0_wf))
@@ -432,6 +433,7 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
                 message = pbc.message_queue.get(False)
                 if data_path is not None and message is not None:
                     recfid.write(message)
+                    recfid.flush()
 
             pass
     except Exception as e:
@@ -503,7 +505,8 @@ if __name__=="__main__":
     for arg in args.keys():
         if args[arg] is not None:
             params[arg]=args[arg]
-
+    if 'ai_freq' in params.keys():
+        params.pop('ai_freq')
     for stim in stimset['stims']:
         verify_stim(params, stim)
 
