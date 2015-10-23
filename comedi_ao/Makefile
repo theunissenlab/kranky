@@ -20,12 +20,3 @@ multikrank: $(krank_objs)
 clean:
 	-rm -f ao_slave
 
-install:
-	install -d $(prefix)/bin/
-	install -m755 multikrank $(prefix)/bin/
-	install -d $(prefix)/share/doc/doupelab-krank/examples/
-	install -m644 scope.rc $(prefix)/share/doc/doupelab-krank/examples/
-	install -m644 setup.rc $(prefix)/share/doc/doupelab-krank/examples/
-	install -d $(prefix)/share/doc/doupelab-krank/examples/songs
-	install -m644 songs/*.bin $(prefix)/share/doc/doupelab-krank/examples/songs
-
