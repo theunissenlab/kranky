@@ -5,44 +5,44 @@
 
 /* global variables */
 
-extern int krank_selected_channel;
-extern int krank_selected_display;
-extern int krank_selected_stimulus;
+// extern int krank_selected_channel;
+// extern int krank_selected_display;
+// extern int krank_selected_stimulus;
 
 
-extern double ai_freq;
-extern double ao_freq;
-extern double scope_freq;
-extern double raster_freq;
-extern int n_raster_stims;
-extern int n_hist_stims;
-extern int debug;
-extern double ramp_time;
-extern int n_trials;
-extern double binsize;
-extern int stim_order;
-extern int output_index;
-extern int reset_on_start;
-extern int n_ai_chan;
-extern int force_overwrite;
-extern int output;
-extern double attenuation;
-extern double attenuation2;
+// extern double ai_freq;
+// extern double ao_freq;
+// extern double scope_freq;
+// extern double raster_freq;
+// extern int n_raster_stims;
+// extern int n_hist_stims;
+// extern int debug;
+// extern double ramp_time;
+// extern int n_trials;
+// extern double binsize;
+// extern int stim_order;
+// extern int output_index;
+// extern int reset_on_start;
+// extern int n_ai_chan;
+// extern int force_overwrite;
+// extern int output;
+// extern double attenuation;
+// extern double attenuation2;
 
 /* scope.c */
 extern int streaming_on;
-extern int ai_n_chan;
+// extern int ai_n_chan;
 extern comedi_range *ai_range;
-extern lsampl_t ai_maxdata;
-extern scope_chan scope_chans[];
+// extern lsampl_t ai_maxdata;
+// extern scope_chan scope_chans[];
 
 void stop(char *why);
 // void plotupdate(void);
 // void dump_comments(FILE *out);
 int check_file_exists(char *path);
 extern int n_comments;
-void scope_log(char *str);
-void scope_log_args(int argc, char *argv[]);
+// void scope_log(char *str);
+// void scope_log_args(int argc, char *argv[]);
 int tokenize(char **argv, char *s);
 
 /* vars.c */

@@ -17,15 +17,176 @@
 #include <signal.h>
 #include "ao_slave.h"
 
+/* misc */
+
+int streaming_on = 0;
+int notify_done = 0;
+
+/* comedi stuff */
+
+char *comedi_filename = "/dev/comedi0";
+comedi_t *dev;
+unsigned int trig_rt = 0;
+
+void comedi_init(void);
+void start(void);
+int comedi_internal_trigger(comedi_t *dev, unsigned int subd, unsigned int trignum);
+
+double scope_max = 10.0;
+double scope_min = -10.0;
+
+/* ao stuff */
+
+unsigned int ao_subd;
+unsigned int ao_range_index;
+unsigned int ao_chanlist[1];
+char *ao_buf = NULL;
+unsigned int ao_buf_len;
+unsigned int ao_buf_offset;
+comedi_range *ao_range;
+lsampl_t ao_maxdata;
+comedi_cmd ao_cmd;
+
+void ao_init(void);
+void ao_stop(void);
+void output_some(void);
 
 /* stimulus */
 
-#define MAX_FILENAME_LENGTH 200
-int stim_init(void);
-void stim_output(char *buf, int len);
-void stim_output2(char *buf, int len);
+// #define MAX_FILENAME_LENGTH 200
+// int stim_init(void);
+// void stim_output(char *buf, int len);
+// void stim_output2(char *buf, int len);
 
 
+
+
+int main(int argc, char *argv[])
+{
+
+	
+	signal(SIGINT,sig_intr);
+	comedi_init();
+	
+	main_loop(dev);
+
+	exit(0);
+}
+
+
+void main_loop(comedi_t *dev)
+{
+    fd_set rdset;
+	fd_set wrset;
+	// struct timeval timeout;
+	int ret;
+	int cur_strm;
+
+	go = 1;
+	// ai_buf_offset = 0;
+	ao_buf_offset = 0;
+	while(go){
+		// FD_ZERO(&rdset);
+		FD_ZERO(&wrset);
+		// FD_SET(0,&rdset);
+		if(streaming_on){
+			// FD_SET(comedi_fileno(dev),&rdset);
+			FD_SET(comedi_fileno(dev),&wrset);
+		}
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 50000;
+		ret = select(comedi_fileno(dev) + 1, &rdset, &wrset, NULL, &timeout);
+		// if(debug>=3)printf("select returned %d\n",ret);
+		if(ret<0){
+			if(errno==EINTR)continue;
+			perror("select");
+		}else if(ret == 0){
+			if(debug>=3)printf("select: timeout\n");
+			/* timeout */
+		}else if(FD_ISSET(comedi_fileno(dev), &wrset)){
+			if(debug>=3)printf("select: ao ready\n");
+			output_some();
+		}
+		/* Make each plplot stream respond to window events? */
+		// plgstrm(&cur_strm);
+		// plsstrm(0);
+		// plP_esc(PLESC_EH,NULL);
+		// g_hash_table_foreach(krank_displays, set_plesc, NULL);
+		// plsstrm(cur_strm);
+	}
+}
+
+
+void comedi_init(void)
+{
+	int ret;
+
+	dev = comedi_open(comedi_filename);
+	if(!dev){
+		comedi_perror(comedi_filename);
+		exit(1);
+	}
+
+	/* Set digital channel 6 to be an output. (for triggering?) */ 
+	ret = comedi_dio_config(dev,DIO_SUBD,6,COMEDI_OUTPUT);
+	if(ret<0){
+		comedi_perror("comedi_dio_config");
+	}
+
+	comedi_set_global_oor_behavior(COMEDI_OOR_NUMBER);
+
+	/* This sets the buffer size for analog output */
+	comedi_set_buffer_size(dev, AO_SUBD, 65536*4);
+}
+
+
+void start(void)
+{
+	int ret;
+
+	if(streaming_on){
+		printf("Unable to comply: already running.  Run 'stop' first.\n");
+		return;
+	}
+
+	if(reset_on_start)stimdata_reset();
+	ai_buf_offset = 0;
+	ao_buf_offset = 0;
+	/* Redefined here to account ofr changed user settings; 
+	   same as in main */
+	ret = stim_init();
+	if(ret<0){
+		return;
+	}
+	ao_init();
+
+	streaming_on = 1;
+
+	ret = comedi_internal_trigger(dev, ao_subd, 0);
+	if(ret<0){
+		comedi_perror("comedi_internal_trigger");
+	}
+}
+
+void ao_stop(void)
+{
+	comedi_cancel(dev, ao_subd);
+}
+
+void stop(char *why)
+{
+	streaming_on = 0;
+	ao_stop();
+	// if(notify_done){
+	// 	printf("\a");
+	// 	fflush(stdout);
+	// }
+	/* free(ai_buf);
+	   free(ao_buf);
+	   ai_buf = NULL;
+	   ao_buf = NULL;
+	*/
+}
 
 void ao_init(void)
 {
@@ -84,5 +245,30 @@ void ao_init(void)
 
 	for(i=0;i<5;i++){
 		output_some();
+	}
+}
+
+
+void output_some(void)
+{
+	int ret;
+
+	ret = write(comedi_fileno(dev), ao_buf + ao_buf_offset, ao_buf_len - ao_buf_offset);
+	if(debug>=3)printf("output_some: write returned %d\n",ret);
+	if(ret<0){
+	        fprintf(stderr, "write error: buffer offset: %d, buffer len: %d.\n", ao_buf_offset, ao_buf_len);
+		perror("write");
+		stop("error");
+		return;
+	}else if(ret == 0){
+		return;
+	}else{
+		ao_buf_offset += ret;
+	}
+
+	/* Refill the stimulus buffer if the end was reached */
+	if(ao_buf_offset >= ao_buf_len){
+		ao_buf_offset = 0;
+		stim_output2(ao_buf, ao_buf_len/2);
 	}
 }
