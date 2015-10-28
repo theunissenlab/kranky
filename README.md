@@ -1,6 +1,8 @@
 ## Kranky
 
-Kranky is a stimulus presentation system rolled in python to control the playback of auditory stimuli in neuroscience experiments. It's originally designed to be compatiple with instructions for krank, developed in the doupe lab. 
+Kranky is a stimulus presentation system rolled in python to control the playback of auditory stimuli in neuroscience experiments. It is easy to control and modify, and integrates with open-ephys.  
+
+kranky is compatible with instructions for krank, a stimulus presenter and data acquisition program developed in the doupe lab. 
 
 
 ## usage: 
