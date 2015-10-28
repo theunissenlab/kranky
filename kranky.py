@@ -477,7 +477,7 @@ if __name__=="__main__":
     default_params['require_data']=True
 
     import argparse
-    parser=argparse.ArgumentParser()
+    parser=argparse.ArgumentParser(prog='kranky')
     parser.add_argument('rc_fname')
     parser.add_argument('-c', '--cardidx',help='alsa card number', type = int)
     parser.add_argument('-n','--n-trials',help='trials help', type=int)
