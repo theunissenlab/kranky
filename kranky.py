@@ -472,7 +472,7 @@ if __name__=="__main__":
     default_params = {}
     default_params['ao_freq'] = 40000
     default_params['n_trials'] = 100
-    default_params['stimorder'] = 2
+    default_params['stim_order'] = 2
     default_params['wav']=False
     default_params['require_data']=True
 
