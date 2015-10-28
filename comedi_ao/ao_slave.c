@@ -37,6 +37,8 @@ double scope_min = -10.0;
 
 /* ao stuff */
 
+int go;
+int debug = 3;
 unsigned int ao_subd;
 unsigned int ao_range_index;
 unsigned int ao_chanlist[1];
@@ -56,7 +58,7 @@ void output_some(void);
 // #define MAX_FILENAME_LENGTH 200
 // int stim_init(void);
 // void stim_output(char *buf, int len);
-// void stim_output2(char *buf, int len);
+void stim_output2(char *buf, int len);
 
 
 
@@ -65,11 +67,9 @@ int main(int argc, char *argv[])
 {
 
 	
-	signal(SIGINT,sig_intr);
+	// signal(SIGINT,sig_intr);
 	comedi_init();
-	
 	main_loop(dev);
-
 	exit(0);
 }
 
@@ -79,9 +79,6 @@ void main_loop(comedi_t *dev)
     fd_set rdset;
 	fd_set wrset;
 	// struct timeval timeout;
-	int ret;
-	int cur_strm;
-
 	go = 1;
 	// ai_buf_offset = 0;
 	ao_buf_offset = 0;
@@ -93,17 +90,12 @@ void main_loop(comedi_t *dev)
 			// FD_SET(comedi_fileno(dev),&rdset);
 			FD_SET(comedi_fileno(dev),&wrset);
 		}
-		timeout.tv_sec = 0;
-		timeout.tv_usec = 50000;
-		ret = select(comedi_fileno(dev) + 1, &rdset, &wrset, NULL, &timeout);
+		// timeout.tv_sec = 0;
+		// timeout.tv_usec = 50000;
+		// ret = select(comedi_fileno(dev) + 1, &rdset, &wrset, NULL, &timeout);
 		// if(debug>=3)printf("select returned %d\n",ret);
-		if(ret<0){
-			if(errno==EINTR)continue;
-			perror("select");
-		}else if(ret == 0){
-			if(debug>=3)printf("select: timeout\n");
-			/* timeout */
-		}else if(FD_ISSET(comedi_fileno(dev), &wrset)){
+		
+		if(FD_ISSET(comedi_fileno(dev), &wrset)){
 			if(debug>=3)printf("select: ao ready\n");
 			output_some();
 		}
@@ -149,8 +141,8 @@ void start(void)
 		return;
 	}
 
-	if(reset_on_start)stimdata_reset();
-	ai_buf_offset = 0;
+	// if(reset_on_start)stimdata_reset();
+	// ai_buf_offset = 0;
 	ao_buf_offset = 0;
 	/* Redefined here to account ofr changed user settings; 
 	   same as in main */
@@ -209,7 +201,7 @@ void ao_init(void)
 	ao_cmd.start_src = TRIG_INT;
 	ao_cmd.start_arg = 0;
 	ao_cmd.scan_begin_src = TRIG_TIMER;
-	ao_cmd.scan_begin_arg = 1e9/ao_freq;
+	// ao_cmd.scan_begin_arg = 1e9/ao_freq;
 	ao_cmd.convert_src = TRIG_NOW;
 	ao_cmd.convert_arg = 0;
 	ao_cmd.scan_end_src = TRIG_COUNT;
