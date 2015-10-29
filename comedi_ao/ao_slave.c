@@ -8,8 +8,6 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include <plplot/plplot.h>
-#include <plplot/plplotP.h>
 #include <math.h>
 #include <ctype.h>
 #include <readline/readline.h>
