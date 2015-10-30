@@ -14,6 +14,11 @@ import traceback
 
 # from lib import zmq_tools as zt
 from lib.fifo import FifoFileBuffer
+try:
+    from lib.pycomedi_tools import ComediWriter
+except:
+    ComediWriter = None
+
 trial_queue_size = 2 # FifoFileBuffernumber of trials to load into queue
 data_queue_size = 10
 
@@ -21,8 +26,7 @@ data_queue_size = 10
 dtype_out = np.dtype(np.int16)
 nbytes = dtype_out.itemsize
 scale_factor = 2**(8*nbytes-1)-1
-channel_def = {'ao0': 0, 
-            'trigger': 1}
+
                  
 runflag = False
 playflag = False
@@ -73,6 +77,11 @@ class PlaybackController(object):
             
 
         pass
+    def connect_to_comedi(self,cardidx=None):
+        if self.pcm is not None:
+            pass
+        self.pcm = ComediWriter(rate=self.params['ao_freq'],chunk_size=self.periodsize)
+
 
 
 
@@ -393,13 +402,15 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
     # setup connection to daq
 
     pbc = PlaybackController(params)
-    pbc.connect_to_pcm(cardidx)
+    # pbc.connect_to_pcm(cardidx)
+    pbc.connect_to_comedi()
     # import ipdb; ipdb.set_trace()
 
 
 
     # get dir list
-    DIR_PRE = os.listdir(data_path_root)
+    if require_data:
+        DIR_PRE = os.listdir(data_path_root)
     # runflag = True
     # trial_loader(pbc,playback_plan)
     # return None
@@ -415,7 +426,7 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
 
     data_path = None
     try:
-        while runflag: # initially look for data directory
+        while runflag and require_data: # initially look for data directory
             data_path=find_data_location(data_path_root, DIR_PRE)
             if data_path is not None:
                 # now we have the dir, open new .rec.paf file and write params
