@@ -1,16 +1,8 @@
 import sys as _sys
 import time as _time
-
-# try:
-#     from matplotlib import pyplot as _pyplot
-#     from matplotlib.lines import Line2D as _Line2D
-#     #from matplotlib.animation import FuncAnimation as _FuncAnimation
-# except (ImportError, RuntimeError) as e:
-#     _pyplot = None
-#     _matplotlib_import_error = e
 import numpy as np
 import time
-# from pycomedi import LOG as _LOG
+
 import pycomedi.constant as _constant
 from pycomedi.device import Device as _Device
 from pycomedi.subdevice import StreamingSubdevice as _StreamingSubdevice
