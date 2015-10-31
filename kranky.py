@@ -478,6 +478,8 @@ if __name__=="__main__":
 
     import argparse
     parser=argparse.ArgumentParser(prog='kranky')
+    parser.description = "Stimuluis Presenter for Neuroscience Experiments"
+    parser.epilog =  'Jeff Knowles, 2015; jeff.knowles@gmail.com'
     parser.add_argument('rc_fname')
     parser.add_argument('-c', '--cardidx',help='alsa card number', type = int)
     parser.add_argument('-n','--n-trials',help='trials help', type=int)
