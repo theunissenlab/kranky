@@ -8,12 +8,6 @@ kranky is compatible with instructions for krank, a stimulus presenter and data 
 ## usage: 
 (see python kranky -h)
 
-kranky.py [-h] [-n N_TRIALS] 
-[-r REQUIRE_DATA] [-d DATA_DIR]
-                 [-s STIM_DIR] [-o STIM_ORDER] [--wav WAV]
-                 rc_fname
-
-
 
 ## .rc file
 The .rc file describes the stimuli and trial parameteres.  Arguments can also be entered in the call to kranky, which override the .rc file specifications
@@ -47,14 +41,16 @@ Kranky accepts .wav files and raw binary (.raw) are 16 bit integers. All stimuli
 ## open ephys
 kranky is built to run along with a special version of open ephys.  You can download my fork here:
 https://github.com/Jeffknowles/GUI
+
+## analog output
+Kranky is built to write output using alsa or comedi.  However, the program is constructed in such a way that makes it easy build a ao thread to play out in other systems.
+
 ## output to .wav file
 Kranky can also write to a wav file:  
 
 	python kranky.py test.rc --wav
 
 
-
-Kranky is built to write output using alsa or comedi.  However, the program is constructed in such a way that makes it easy build a ao thread to play out in other systems.
 
 
 ```
