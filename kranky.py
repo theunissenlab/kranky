@@ -16,7 +16,9 @@ import traceback
 from lib.fifo import FifoFileBuffer
 try:
     from lib.pycomedi_tools import ComediWriter
-except:
+except ImportError:
+    pass
+else:
     ComediWriter = None
 
 trial_queue_size = 2 # FifoFileBuffernumber of trials to load into queue
@@ -30,7 +32,6 @@ data_queue_size = 10
                  
 runflag = False
 playflag = False
-
 class PlaybackController(object):
     def __init__(self, params):
         self.params = params
@@ -230,7 +231,7 @@ def type_info(dtype):
 def condition_wf(wf, dtype_out):
     issigned, zerovalue, maxvalue = type_info(dtype_out)
     if issigned:
-        wf_out = wf.as_type(dtype_out)
+        wf_out = wf.astype(dtype_out)
     else:
         wf_out = wf.astype(np.int64)
         wf_out = (wf_out + zerovalue).astype(dtype_out)
