@@ -17,8 +17,6 @@ from lib.fifo import FifoFileBuffer
 try:
     from lib.pycomedi_tools import ComediWriter
 except ImportError:
-    pass
-else:
     ComediWriter = None
 
 trial_queue_size = 2 # FifoFileBuffernumber of trials to load into queue
