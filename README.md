@@ -40,7 +40,10 @@ set attenuation2 0
 Kranky accepts .wav files and raw binary (.raw) are 16 bit integers. All stimuli in a presentation should have the same sampling rate, but this is enforced for .wav files.  
 ## .rec files
 .rec files save a record of the playback and capture for future analysis. kranky.py saves .pbrec files which contain all the information about the stimulus presentation as it happens. It similtaniously looks at the data coming in to write .rec from the .pbrec files.  .rec is .pbrec plus ai clock samples when the stimuli happened.
+
 ## trigger system
+(will write up soon). 
+
 ## open ephys
 kranky is built to run along with a special version of open ephys.  You can download my fork here:
 https://github.com/Jeffknowles/GUI
@@ -51,25 +54,39 @@ Kranky can also write to a wav file:
 
 
 
-Kranky is built to run on alsa (and soon NI) but is constructed in such a way that makes it easy build a ao thread to play out in other systems.
+Kranky is built to write output using alsa or comedi.  However, the program is constructed in such a way that makes it easy build a ao thread to play out in other systems.
 
 
-	
-
+```
+#!bash
+kranky -h
+usage: kranky [-h] [-c CARDIDX] [-n N_TRIALS] [-r REQUIRE_DATA] [-d DATA_DIR]
+              [-s STIM_DIR] [-o STIM_ORDER] [--ao-freq AO_FREQ] [--wav WAV]
+              rc_fname
 
 positional arguments:
   rc_fname
 
 optional arguments:
   -h, --help            show this help message and exit
+  -c CARDIDX, --cardidx CARDIDX
+                        alsa card number
   -n N_TRIALS, --n-trials N_TRIALS
                         trials help
   -r REQUIRE_DATA, --require-data REQUIRE_DATA
-                        force data help
+                        require that new data be found in data dur to continue
   -d DATA_DIR, --data-dir DATA_DIR
-                        data directory help
+                        directory to look for data dir from data capture
+                        software
   -s STIM_DIR, --stim-dir STIM_DIR
-                        stimulus directory help
-  -o STIM_ORDER, --stim_order STIM_ORDER
-                        stimulus directory help
-  --wav WAV             wav help
+                        directory containing stim-sets. If the exact directory
+                        passed in the rc file isnt found, kranky looks for the
+                        stimset here.
+  -o STIM_ORDER, --stim-order STIM_ORDER
+                        How to order the stimuli. 0=in the order provided
+                        2=randomly interleaved
+  --ao-freq AO_FREQ
+  --wav WAV             write a .wav file instead of doing playback
+
+
+```
