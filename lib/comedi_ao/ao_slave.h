@@ -49,9 +49,14 @@ int tokenize(char **argv, char *s);
 void vars_dump(FILE *out);
 
 /* stim.c */
-
-extern int n_stims;
-extern stim_struct *stims[];
+#define AO_SUBD 1
+#define AO_FIFO_LEN 2048
+#define DIO_SUBD 7
+#define MAX_CHANS 16
+#define AO_RANGE_INDEX 0
+#define ao_freq = 10000
+// extern int n_stims;
+// extern stim_struct *stims[];
 
 // void stim_plotdata_all(void);
 void stim_stop(char *why);

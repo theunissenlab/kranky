@@ -14,15 +14,19 @@ import traceback
 
 # from lib import zmq_tools as zt
 from lib.fifo import FifoFileBuffer
+try:
+    from lib.pycomedi_tools import ComediWriter
+except:
+    ComediWriter = None
+
 trial_queue_size = 2 # FifoFileBuffernumber of trials to load into queue
 data_queue_size = 10
 
 
-dtype_out = np.dtype(np.int16)
-nbytes = dtype_out.itemsize
-scale_factor = 2**(8*nbytes-1)-1
-channel_def = {'ao0': 0, 
-            'trigger': 1}
+# dtype_out = np.dtype(np.int16)
+# nbytes = dtype_out.itemsize
+# scale_factor = 2**(8*nbytes-1)-1
+
                  
 runflag = False
 playflag = False
@@ -31,6 +35,8 @@ class PlaybackController(object):
     def __init__(self, params):
         self.params = params
         self.pcm = None
+        self.pcm_type = None
+        self.dtype_out = None 
         self.periodsize = 1024
         self.nchannels = 4
         self.channel_def = {'ao0': 0, 
@@ -53,10 +59,8 @@ class PlaybackController(object):
         self.pcm.setrate(self.params['ao_freq'])
         self.pcm.setperiodsize(self.periodsize)
         self.pcm.setformat(aa.PCM_FORMAT_S16_LE)
-        
-
-        
-          
+        self.dtype_out = np.dtype(np.int16)
+        self.ttl_height_rel = 1
         mixer = aa.Mixer(control='DAC', cardindex = cardidx)
         try:
             mixer.setvolume(100)
@@ -70,11 +74,16 @@ class PlaybackController(object):
             mixer.close()
         except:
             pass
-            
-
+        self.pcm_type = 'alsa'
         pass
-
-
+    def connect_to_comedi(self,cardidx=None):
+        if self.pcm is not None:
+            pass
+        self.pcm = ComediWriter(rate=self.params['ao_freq'],chunk_size=self.periodsize)
+        self.pcm_type = 'comedi'
+        self.dtype_out = np.dtype(self.pcm.ao_dtype)
+        self.ttl_height_rel = 0.5
+        pass
 
 def load_rc_file(fname, stimuli_dir=None):
     params = dict(default_params)
@@ -139,7 +148,7 @@ def load_stim(params, stim):
         wfid.close()
     else: 
         raise(Exception('Unknown file type'))
-    return wf.astype(dtype_out)
+    return wf
 
 
 def generate_playback_plan(params, stimset):
@@ -206,38 +215,71 @@ def generate_trigger(params, n_samples, trial_idx = None):
     return wf, high_onsets, low_onsets
 
 
-def load_trial_data(pbc,trial,ktrial):
+def type_info(dtype):
+    if dtype in [np.int, np.int0, np.int8, np.int16, np.int32, np.int64]:
+        issigned = True
+        maxvalue = 2**(8*dtype.itemsize-1)-1
+        zerovalue = 0
+    else:
+        issigned = False
+        maxvalue = 2**(8*dtype.itemsize)-1
+        zerovalue = 2**(8*dtype.itemsize) / 2
+    return issigned, zerovalue, maxvalue
 
-    stim0_wf = load_stim(pbc.params, trial['stim']).astype(dtype_out)
-    data=np.zeros((4,len(stim0_wf)),dtype=dtype_out)
-    stim1_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
-    stim1_wf[0:100]=scale_factor
+
+def condition_wf(wf, dtype_out):
+    issigned, zerovalue, maxvalue = type_info(dtype_out)
+    if issigned:
+        wf_out = wf.as_type(dtype_out)
+    else:
+        wf_out = wf.astype(np.int64)
+        wf_out = (wf_out + zerovalue).astype(dtype_out)
+    return wf_out
+
+def condition_ttl(wf, dtype_out, ttl_height_rel):
+    issigned, zerovalue, maxvalue = type_info(dtype_out)
+    ttl_value = zerovalue+(maxvalue-zerovalue)*ttl_height_rel
+    if issigned:
+        wf_out=np.zeros(wf.shape,dtype_out)
+        wf_out[wf!=0]=ttl_value
+    else:
+        wf_out=(np.ones(wf.shape)*zerovalue).astype(dtype_out)
+        wf_out[wf!=0]=ttl_value
+    return wf_out
+
+def load_trial_data(pbc,trial,ktrial):
+    stim0_wf = condition_wf(load_stim(pbc.params, trial['stim']), pbc.dtype_out)
+
+    stim1_wf = np.zeros(stim0_wf.shape)
+    stim1_wf[100]=1
+    stim1_wf = condition_ttl(stim1_wf, pbc.dtype_out, pbc.ttl_height_rel)
     # stim2_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
     trigger0_wf, hio, lowo = generate_trigger(pbc.params, len(stim0_wf), trial_idx = ktrial)
-    trigger0_wf = np.multiply(trigger0_wf,1*scale_factor).astype(dtype_out)
-    
+    trigger0_wf = condition_ttl(trigger0_wf,pbc.dtype_out, pbc.ttl_height_rel)
+
+    data=condition_wf(np.zeros((4,len(stim0_wf))),pbc.dtype_out)
     data[0,:]=stim0_wf
     data[1,:]=stim1_wf
-    # data[2,:]=stim1_wf # this channel controls recording
+    # data[2,:]=stim1_wf
     data[3,:]=trigger0_wf
-
-    # data = np.vstack((stim0_wf, stim1_wf, stim2_wf, trigger0_wf))
-
-    # from matplotlib import pyplot as plt; plt.plot(data.transpose()); plt.show()
     # import ipdb; ipdb.set_trace()
     return data
 
 def load_intro_data(pbc, intro_length=1, intro_pulse_length=10e-3):
-    data = np.zeros((4,pbc.params['ao_freq']*intro_length)).astype(dtype_out)
+    data = np.zeros((4,pbc.params['ao_freq']*intro_length))
     idx0 = 1;
     idx1 = round(float(intro_pulse_length)*pbc.params['ao_freq'])+idx0
-    data[2,idx0:idx1]=1*scale_factor
+    data[2,idx0:idx1]=1
+    data = condition_ttl(data,pbc.dtype_out, pbc.ttl_height_rel)
     return data
 def load_end_data(pbc, end_length=1,end_pulse_length=10e-3):
-    data = np.zeros((4,pbc.params['ao_freq']*end_length)).astype(dtype_out)
+    data = np.zeros((4,pbc.params['ao_freq']*end_length))
     # data[3,:] =-1*scale_factor
-    idx0 = data.shape[1]-float(end_pulse_length)*pbc.params['ao_freq']
-    data[2,idx0:-2]=1*scale_factor
+    idx0=1
+    idx1 = data.shape[1]-float(end_pulse_length)*pbc.params['ao_freq']
+    data[2,idx0:idx1]=1
+    data=condition_ttl(data,pbc.dtype_out,pbc.ttl_height_rel)
+    # import ipdb; ipdb.set_trace()
     return data
 
 
@@ -304,7 +346,7 @@ def trial_loader(pbc, playback_plan):
 def data_loader(pbc):
     chunk_length = pbc.periodsize*pbc.nchannels
 
-    chunk_length_bytes = chunk_length*nbytes
+    chunk_length_bytes = chunk_length*pbc.dtype_out.itemsize
     buff = FifoFileBuffer()
     nsafeframes = int(float(pbc.params['ao_freq'])/chunk_length)
     global runflag, playflag
@@ -313,7 +355,7 @@ def data_loader(pbc):
 
     # add some chunks to start
     for k in range(0,nsafeframes):
-        pbc.data_queue.put(np.zeros((1,chunk_length),dtype=dtype_out).tostring())
+        pbc.data_queue.put(condition_ttl(np.zeros((4,chunk_length)),pbc.dtype_out,pbc.ttl_height_rel).tostring())
 
 
     trial_count = 0
@@ -333,7 +375,7 @@ def data_loader(pbc):
                     pbc.data_queue.put(buff.read())
                     # add some chunks to end
                     for k in range(0,nsafeframes):
-                        pbc.data_queue.put(np.zeros((1,chunk_length),dtype=dtype_out).tostring())
+                        pbc.data_queue.put(np.zeros((1,chunk_length),dtype=pbc.dtype_out).tostring())
                     pbc.data_queue.put("STOP")
                     break
 
@@ -343,6 +385,7 @@ def data_loader(pbc):
             pbc.data_queue.put(buff.read(size=chunk_length_bytes))
             chunk_count += 1
             # print "loading chunk %d" % chunk_count
+
     pass
 
 def ao_thread(pbc):
@@ -393,13 +436,18 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
     # setup connection to daq
 
     pbc = PlaybackController(params)
-    pbc.connect_to_pcm(cardidx)
+    if len(cardidx)<2:
+        cardidx=int(cardidx)
+        pbc.connect_to_pcm(cardidx)
+    else:
+        pbc.connect_to_comedi()
     # import ipdb; ipdb.set_trace()
 
 
 
     # get dir list
-    DIR_PRE = os.listdir(data_path_root)
+    if require_data:
+        DIR_PRE = os.listdir(data_path_root)
     # runflag = True
     # trial_loader(pbc,playback_plan)
     # return None
@@ -415,7 +463,7 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
 
     data_path = None
     try:
-        while runflag: # initially look for data directory
+        while runflag and require_data: # initially look for data directory
             data_path=find_data_location(data_path_root, DIR_PRE)
             if data_path is not None:
                 # now we have the dir, open new .rec.paf file and write params
@@ -475,13 +523,13 @@ if __name__=="__main__":
     default_params['stim_order'] = 2
     default_params['wav']=False
     default_params['require_data']=True
-
+    default_params['cardidx']='comedi'
     import argparse
     parser=argparse.ArgumentParser(prog='kranky')
     parser.description = "Stimuluis Presenter for Neuroscience Experiments"
     parser.epilog =  'Jeff Knowles, 2015; jeff.knowles@gmail.com'
     parser.add_argument('rc_fname')
-    parser.add_argument('-c', '--cardidx',help='alsa card number', type = int)
+    parser.add_argument('-c', '--cardidx',help='alsa card number', type = str)
     parser.add_argument('-n','--n-trials',help='trials help', type=int)
     parser.add_argument('-r','--require-data', help='require that new data be found in data dur to continue',type=int)
     parser.add_argument('-d','--data-dir',help='directory to look for data dir from data capture software')
