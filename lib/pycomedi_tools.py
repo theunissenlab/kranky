@@ -1,16 +1,16 @@
 import sys as _sys
 import time as _time
 
-try:
-    from matplotlib import pyplot as _pyplot
-    from matplotlib.lines import Line2D as _Line2D
-    #from matplotlib.animation import FuncAnimation as _FuncAnimation
-except (ImportError, RuntimeError) as e:
-    _pyplot = None
-    _matplotlib_import_error = e
+# try:
+#     from matplotlib import pyplot as _pyplot
+#     from matplotlib.lines import Line2D as _Line2D
+#     #from matplotlib.animation import FuncAnimation as _FuncAnimation
+# except (ImportError, RuntimeError) as e:
+#     _pyplot = None
+#     _matplotlib_import_error = e
 import numpy as np
 import time
-from pycomedi import LOG as _LOG
+# from pycomedi import LOG as _LOG
 import pycomedi.constant as _constant
 from pycomedi.device import Device as _Device
 from pycomedi.subdevice import StreamingSubdevice as _StreamingSubdevice
@@ -109,7 +109,7 @@ class ComediWriter(object):
 		ao_preload = np.zeros((ao_preload0.shape), self.ao_dtype)
 		for kch in range(n_ao_channels):
 			ao_preload[:,kch] = self.ao_converter.from_physical(ao_preload0[:,kch]).astype(self.ao_dtype)
-
+		# import ipdb; ipdb.set_trace()
 		# do_buffer = np.zeros(chunk_size*50, do_dtype)
 		ao_preload.tofile(self._file)
 		# setup writers
