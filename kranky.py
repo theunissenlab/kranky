@@ -37,11 +37,7 @@ class PlaybackController(object):
         self.pcm_type = None
         self.dtype_out = None 
         self.periodsize = 1024
-        self.nchannels = 4
-        self.channel_def = {'ao0': 0, 
-                            'ao1': 1, 
-                            'trigger0': 2, 
-                            'trigger1': 3}
+        self.nchannels = params['nchannels']
 
         self.trial_queue = Queue.Queue(maxsize=trial_queue_size)
         self.data_queue = Queue.Queue(maxsize=data_queue_size)
@@ -96,30 +92,32 @@ def load_rc_file(fname, stimuli_dir=None):
 def parse_rc_line(line, params, stimset,stimuli_dir=None):
     if len(line.strip('\n'))>0:
         parts = line.strip('\n').split(' ')
+        parts = [part for part in parts if len(parts)>0]
         if parts[0].lower() == 'stim':
-            if len(parts) > 1 and parts[1] == 'add':
-                if len(parts) == 3:
-                    stim = {}
-                    stim['fname'] = parts[2]
-                    stim['name'] = os.path.basename(stim['fname'])
-                    head,tail = os.path.split(os.path.dirname(stim['fname']))
-                    stim['stimset'] = tail
-                    if not os.path.exists(stim['fname']) and stimuli_dir is not None:
-                        stim['fname'] = os.path.join(stimuli_dir, stim['stimset'], stim['name'])
-                    stimset['stims'].append(stim)
-                    stimset['stims'][len(stimset['stims'])-1]['stim_idx'] = len(stimset['stims'])-1
-                elif len(parts) == 4 and stimuli_dir is not None:
-                    stim = {}
-                    stim['stimset'] = parts[2]
-                    stim['name'] = parts[3]
-                    stim['fname'] = os.path.join(stimuli_dir, stim['stimset'], stim['name'])
-                    verify_stim(stim)
+            if len(parts) > 2 and parts[1] == 'add':
+                    stim = parse_stim(params, parts[2:])
+                    verify_stim(params,stim)
+
 
         elif parts[0].lower() == "set":
             if len(parts)>2:
                 params[parts[1]] = int(parts[2]) ###### make this parse different formats 
     return params, stimset # for transparency
 
+def parse_stim(params,parts):
+    stim = {}
+    stim['ttl_chs'] = 0
+    stim['ao_chs'] = 0
+    for k,part in enumerate(parts):
+        stim['fname'] = part
+        stim['name'] = os.path.basename(stim['fname'])
+        head,tail = os.path.split(os.path.dirname(stim['fname']))
+        stim['stimset'] = tail
+        # if can't find the file, try looking in the "stim" directory
+        if not os.path.exists(stim['fname']) and stimuli_dir is not None:
+            stim['fname'] = os.path.join(stimuli_dir, stim['stimset'], stim['name'])
+
+    pass
 def verify_stim(params, stim):
     load_stim(params, stim)
     pass
@@ -255,6 +253,8 @@ def load_trial_data(pbc,trial,ktrial):
     # stim2_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
     trigger0_wf, hio, lowo = generate_trigger(pbc.params, len(stim0_wf), trial_idx = ktrial)
     trigger0_wf = condition_ttl(trigger0_wf,pbc.dtype_out, pbc.ttl_height_rel)
+    
+
 
     data=condition_wf(np.zeros((4,len(stim0_wf))),pbc.dtype_out)
     data[0,:]=stim0_wf
@@ -523,6 +523,9 @@ if __name__=="__main__":
     default_params['wav']=False
     default_params['require_data']=True
     default_params['cardidx']='comedi'
+    default_params['trigger_channel']=4
+    default_params['record_control_channel']=3
+    default_params['nchannels'] = 4
     import argparse
     parser=argparse.ArgumentParser(prog='kranky')
     parser.description = "Stimuluis Presenter for Neuroscience Experiments"
