@@ -2,10 +2,13 @@ import sys as _sys
 import time as _time
 import numpy as np
 import time
+import threading
+import multiprocessing
 
 import pycomedi.constant as _constant
 from pycomedi.device import Device as _Device
 from pycomedi.subdevice import StreamingSubdevice as _StreamingSubdevice
+from pycomedi.subdevice import Subdevice as _Subdevice
 from pycomedi.channel import AnalogChannel as _AnalogChannel
 from pycomedi.channel import DigitalChannel as _DigitalChannel
 from pycomedi.chanspec import ChanSpec as _ChanSpec
@@ -26,19 +29,47 @@ def open_ao_channels(device, subdevice, channels, _range, aref):
                 for i in channels]
     return(subdevice, channels)
 
-def open_do_channels(device, subdevice, channels):
+
+def open_ao_channels_nonstream(device, subdevice, channels, _range, aref):
     """Subdevice index and list of channel indexes
     to ``Subdevice`` instance and list of ``AnalogChannel`` instances
     """
     if subdevice >= 0:
-        subdevice = device.subdevice(subdevice, factory=_StreamingSubdevice)
+        subdevice = device.subdevice(subdevice, factory=_Subdevice)
     else:
         subdevice = device.find_subdevice_by_type(
-            _constant.SUBDEVICE_TYPE.dio, factory=_StreamingSubdevice)
+            _constant.SUBDEVICE_TYPE.ao, factory=_Subdevice)
+    channels = [subdevice.channel(
+            index=i, factory=_AnalogChannel, range=_range, aref=aref)
+                for i in channels]
+    return(subdevice, channels)
+
+def open_do_channels(device, subdevice, channels, ddir = _constant.IO_DIRECTION.output):
+    """Subdevice index and list of channel indexes
+    to ``Subdevice`` instance and list of ``AnalogChannel`` instances
+    """
+    if subdevice >= 0:
+        subdevice = device.subdevice(subdevice, factory=_Subdevice)
+    else:
+        subdevice = device.find_subdevice_by_type(
+            _constant.SUBDEVICE_TYPE.dio, factory=_Subdevice)
     channels = [subdevice.channel(
             index=i, factory=_DigitalChannel)
                 for i in channels]
+    for ch in channels:
+    	ch.dio_config(ddir)
+
     return(subdevice, channels)
+
+def open_ai_channels(device, channels, _range=0, aref=0):
+	subdevice = device.find_subdevice_by_type(
+            _constant.SUBDEVICE_TYPE.ai, factory=_Subdevice)
+	channels = [subdevice.channel(
+            index=i, factory=_AnalogChannel, range=_range, aref=aref)
+                for i in channels]
+
+	return (subdevice, channels)
+
 def prepare_ao_command(subdevice, channels, frequency):
     """Create a periodic sampling command.
 
@@ -145,11 +176,42 @@ class ComediWriter(object):
 		else:
 			raise Exception('Data Type not Recognized')
 
+aad_factor = (2**16-1)/15
+def run_aad_thread():
+	device = _Device(filename='/dev/comedi0')
+	device.open()
+	ai_subdevice, ai_channels = open_ai_channels(device=device, channels=[0])
+	do_subdevice, do_channels = open_do_channels(device=device, subdevice=None, channels=[0,1,2,3,4,5,6,7])
+	aich = ai_channels[0]
+	aich.range=aich.find_range(unit=_constant.UNIT.volt,min=-10,max=10)
+	aich.apply_calibration()
+	# t_aad = threading.Thread(target=aad_thread, args=(aich, do_subdevice))
+	# t_aad.start()
+	p_aad = multiprocessing.Process(target=aad_thread, args=(aich, do_subdevice))
+	p_aad.start()
 
+	pass
 
-
+def aad_thread(aich, do_subdevice):
+	last_int = 0
+	while True:
+		ai_int = int(np.round(np.mean(aich.data_read_n(1))/aad_factor))
+		do_subdevice.dio_bitfield(base_channel=0, write_mask=15, bits=ai_int)
+		# if ai_int!=last_int:
+		# 	last_int = ai_int
+		# 	print ai_int
+		
 if __name__=="__main__":
 	# import ipdb; ipdb.set_trace()
+	run_aad_thread()
+	device = _Device(filename='/dev/comedi0')
+	device.open()
+	ao_subdevice, ao_channels = open_ao_channels_nonstream(device=device, subdevice=None, channels=[0],_range=0,aref=0)
+	aoch = ao_channels[0]
+	for k in range(0,16):
+	 	aoch.data_write(np.min(((k*aad_factor),2**16-1)))
+	 	time.sleep(1)
+	import ipdb; ipdb.set_trace()
 	writer = ComediWriter(rate=100000)
 	count = 0
 	amp = 5

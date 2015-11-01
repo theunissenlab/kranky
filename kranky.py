@@ -15,7 +15,7 @@ import traceback
 # from lib import zmq_tools as zt
 from lib.fifo import FifoFileBuffer
 try:
-    from lib.pycomedi_tools import ComediWriter
+    from lib.pycomedi_tools import ComediWriter, run_aad_thread, aad_factor
 except ImportError:
     ComediWriter = None
 
@@ -74,6 +74,7 @@ class PlaybackController(object):
     def connect_to_comedi(self,cardidx=None):
         if self.pcm is not None:
             pass
+        # run_aad_thread()
         self.pcm = ComediWriter(rate=self.params['ao_freq'],chunk_size=self.periodsize)
         self.pcm_type = 'comedi'
         self.dtype_out = np.dtype(self.pcm.ao_dtype)
@@ -248,18 +249,16 @@ def load_trial_data(pbc,trial,ktrial):
     stim0_wf = condition_wf(load_stim(pbc.params, trial['stim']), pbc.dtype_out)
 
     stim1_wf = np.zeros(stim0_wf.shape)
-    stim1_wf[100]=1
     stim1_wf = condition_ttl(stim1_wf, pbc.dtype_out, pbc.ttl_height_rel)
     # stim2_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
     trigger0_wf, hio, lowo = generate_trigger(pbc.params, len(stim0_wf), trial_idx = ktrial)
+    trigger0_wf_copy = trigger0_wf *15 * aad_factor
     trigger0_wf = condition_ttl(trigger0_wf,pbc.dtype_out, pbc.ttl_height_rel)
-    
-
-
-    data=condition_wf(np.zeros((4,len(stim0_wf))),pbc.dtype_out)
+    # ttl_data 
+    data=np.zeros((4,len(stim0_wf)),pbc.dtype_out)
     data[0,:]=stim0_wf
-    data[1,:]=stim1_wf
-    # data[2,:]=stim1_wf
+    data[1,:]=trigger0_wf_copy
+    #data[2,:]=stim1_wf
     data[3,:]=trigger0_wf
     # import ipdb; ipdb.set_trace()
     return data
