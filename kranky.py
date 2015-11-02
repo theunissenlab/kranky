@@ -107,8 +107,8 @@ def parse_rc_line(line, params, stimset,stimuli_dir=None):
 
 def parse_stim(params,parts):
     stim = {}
-    stim['ttl_chs'] = 0
-    stim['ao_chs'] = 0
+    stim['n_ttlchs'] = 0
+    stim['n_aochs'] = 0
     stim['aochs'] = []
     stim['ttlchs']= []
     for k,part in enumerate(parts):
@@ -135,6 +135,7 @@ def parse_stim(params,parts):
                 else:
                     raise Exception('Error in ''stim add'' command format for part:\n %s' % (part))
             stim['ttlchs'].append(ch)
+            stim['n_ttlchs']+=1
         else: # otherwise its an analog channel. always double chcek your channels before she blows
             ch={}
             ch['type']='ao'
@@ -147,9 +148,11 @@ def parse_stim(params,parts):
                 ch['command']=None
                 ch['stimset']=stimset
                 ch['name']=name
+                ch['type']='file-ao'
             else:
                 raise Exception('Error in ''stim add'' command format for part:\n %s' % (part))
             stim['aochs'].append(ch)
+            stim['n_aochs']+=1
             pass
     verify_stim(params,stim)
     return stim
@@ -167,6 +170,31 @@ def verify_stim(params, stim):
     pass
 
 def load_stim(params, stim):
+    nsamples_max = 0
+    for k,ttlch in enumerate(stim['ttlchs']):
+        if ttlch['type'] is 'file-ttl':
+            wf=load_wf(ttlch['fname'])
+        elif ttlch['type'] is 'kranky-ttl':
+            raise Exception('kranky generation not yet supported.  check back soon says the duck')
+        else:
+            raise Exception('Bad ch type ttl %d: %s' % (k,ttlch['type']))
+
+        nsamples_max = np.max((nsamples_max,len(wf)))
+        stim['ttlchs'][k]['wf'] = wf
+        stim['ttlchs'][k]['nsamples']=len(wf)
+    for k,aoch in enumerate(stim['aochs']):
+        if ao['type'] is 'file-ao':
+            wf=load_wf(aoch['fname'])
+        else:
+            raise Exception('Bad ch type ao %d: %s' % (k,aoch['type']))
+        nsamples_max = np.max((nsamples_max,len(wf)))
+        stim['aochs'][k]['wf'] = wf
+        stim['aochs'][k]['nsamples']=len(wf)
+    stim['nsamples_max']=nsamples_max
+    return stim
+
+def load_wf(params, fname):
+
     if stim['fname'][-4:] == '.raw':
         fid = open(stim['fname'],'r')
         dt = np.dtype('int16').newbyteorder('>')
@@ -289,20 +317,31 @@ def condition_ttl(wf, dtype_out, ttl_height_rel):
     return wf_out
 
 def load_trial_data(pbc,trial,ktrial):
-    stim0_wf = condition_wf(load_stim(pbc.params, trial['stim']), pbc.dtype_out)
 
-    stim1_wf = np.zeros(stim0_wf.shape)
-    stim1_wf = condition_ttl(stim1_wf, pbc.dtype_out, pbc.ttl_height_rel)
+    stim=trial['stim']
+    # load the ao and ttl channel wfs into nump mats
+    aowfs = np.zeros((stim['n_aochs'],stim['nsamples_max']))
+    ttlwfs = np.zeros((stim['n_ttlchs'],stim['nsamples_max']))
+    for k,ttlch in enumerate(stim['ttlchs']):
+        ttlwfs[k,0:ttlch['nsamples']]=condition_ttl(ttlch['wf'])
+    for k,aoch in enumerate(stim['aochs']):
+        aowfs[k,0:aoch['nsamples']]=condition_aoch
+
+
+    # stim0_wf = condition_wf(load_stim(pbc.params, trial['stim']), pbc.dtype_out)
+
+    # stim1_wf = np.zeros(stim0_wf.shape)
+    # stim1_wf = condition_ttl(stim1_wf, pbc.dtype_out, pbc.ttl_height_rel)
     # stim2_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
-    trigger0_wf, hio, lowo = generate_trigger(pbc.params, len(stim0_wf), trial_idx = ktrial)
-    trigger0_wf_copy = trigger0_wf *15 * aad_factor
-    trigger0_wf = condition_ttl(trigger0_wf,pbc.dtype_out, pbc.ttl_height_rel)
+    # trigger0_wf, hio, lowo = generate_trigger(pbc.params, len(stim0_wf), trial_idx = ktrial)
+    # trigger0_wf_copy = trigger0_wf *15 * aad_factor
+    # trigger0_wf = condition_ttl(trigger0_wf,pbc.dtype_out, pbc.ttl_height_rel)
     # ttl_data 
-    data=np.zeros((4,len(stim0_wf)),pbc.dtype_out)
-    data[0,:]=stim0_wf
-    data[1,:]=trigger0_wf_copy
+    # data=np.zeros((4,len(stim0_wf)),pbc.dtype_out)
+    # data[0,:]=stim0_wf
+    # data[1,:]=trigger0_wf_copy
     #data[2,:]=stim1_wf
-    data[3,:]=trigger0_wf
+    # data[3,:]=trigger0_wf
     # import ipdb; ipdb.set_trace()
     return data
 
