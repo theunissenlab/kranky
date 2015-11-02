@@ -98,8 +98,8 @@ def parse_rc_line(line, params, stimset,stimuli_dir=None):
             if len(parts) > 2 and parts[1] == 'add':
                     stim = parse_stim(params, parts[2:])
                     verify_stim(params,stim)
-
-
+                    stimset['stims'].append(stim)
+                    stimset['stims'][len(stimset['stims'])-1]['stim_idx'] = len(stimset['stims'])-1
         elif parts[0].lower() == "set":
             if len(parts)>2:
                 params[parts[1]] = int(parts[2]) ###### make this parse different formats 
@@ -109,16 +109,59 @@ def parse_stim(params,parts):
     stim = {}
     stim['ttl_chs'] = 0
     stim['ao_chs'] = 0
+    stim['aochs'] = []
+    stim['ttlchs']= []
     for k,part in enumerate(parts):
-        stim['fname'] = part
-        stim['name'] = os.path.basename(stim['fname'])
-        head,tail = os.path.split(os.path.dirname(stim['fname']))
-        stim['stimset'] = tail
-        # if can't find the file, try looking in the "stim" directory
-        if not os.path.exists(stim['fname']) and stimuli_dir is not None:
-            stim['fname'] = os.path.join(stimuli_dir, stim['stimset'], stim['name'])
+        if 'ttl-' in part:
+            ch={}
+            fname = part.part.strip('ttl-')
+            name = os.path.basename(fname)
+            head,tail = os.path.split(os.path.dirname(fname))
+            stimset = tail
+            if check_if_fname_exists(fname) is not False:
+                ch['fname'=check_if_fname_exists(fname)
+                ch['type']='file-ttl'
+                ch['command']=None
+                ch['fname']=fname
+                ch['stimset']=stimset
+                ch['name']=name
+            else: # see if kranky should generate this
+                if 'kranky:' in fname:
+                    ch['type']='kranky-ttl'
+                    ch['command']=fname.strip('kranky')
+                    ch['fname']=None
+                    ch['stimset']=None
+                    ch['name']=name
+                else:
+                    raise Exception('Error in ''stim add'' command format for part:\n %s' % (part))
+            stim['ttlchs'].append(ch)
+        else: # otherwise its an analog channel. always double chcek your channels before she blows
+            ch={}
+            ch['type']='ao'
+            fname = part.part.strip('ao-')
+            name = os.path.basename(fname)
+            head,tail = os.path.split(os.path.dirname(fname))
+            stimset = tail
+            if check_if_fname_exists(fname) is not False:
+                ch['fname']=check_if_fname_exists(fname)
+                ch['command']=None
+                ch['stimset']=stimset
+                ch['name']=name
+            else:
+                raise Exception('Error in ''stim add'' command format for part:\n %s' % (part))
+            stim['aochs'].append(ch)
+            pass
+    verify_stim(params,stim)
+    return stim
 
-    pass
+def check_if_fname_exists(fname,stimset,name,stimuli_dir):
+    # if can't find the file, try looking in the "stim" directory
+    if not os.path.exists(fname) and stimuli_dir is not None:
+        working_one = os.path.join(stimuli_dir, stimset, name)
+    else:
+        working_one = fname
+    return working_one
+
 def verify_stim(params, stim):
     load_stim(params, stim)
     pass
