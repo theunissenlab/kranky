@@ -173,7 +173,7 @@ class ComediWriter(object):
 		elif type(chunk) is str:
 			self.write_binary_string_chunk(chunk)
 		else:
-			raise Exception('Data Type not Recognized')
+			raise Exception('Data Type not Recognized; must either be a binary string or a numpy chunk')
 
 aad_factor = (2**16-1)/15
 aad_offset = 0#2**15
@@ -202,23 +202,23 @@ def aad_thread(aich, do_subdevice):
 		# 	print ai_int
 		
 if __name__=="__main__":
-	run_aad_thread()
+	# run_aad_thread()
 	# import ipdb; ipdb.set_trace()
-	# writer = ComediWriter(rate=100000) #, dfname='/dev/comedi0_subd0')
+	writer = ComediWriter(rate=100000) #, dfname='/dev/comedi0_subd0')
 	# import ipdb; ipdb.set_trace()
-	# count = 0
+	count = 0
 	# amp = 5
 	# # writer.start()
-	# ao_chunk_out = np.zeros((writer.chunk_size,writer.n_ao_channels),writer.ao_dtype)
-	# amp = [5,1,5,1]
-	# while count < 50000:
-	# 	count +=1
-	# 	print count
-	# 	ao_chunk = np.random.randn(writer.chunk_size,writer.n_ao_channels)
-	# 	for kch in range(writer.n_ao_channels):
-	# 		ao_chunk_out[:,kch] = writer.ao_converter.from_physical(ao_chunk[:,kch]*amp[kch]).astype(writer.ao_dtype)
-	# 		# import ipdb; ipdb.set_trace()
-	# 	# ao_chunk_out = np.reshape(ao_chunk_out,(1,np.prod(ao_chunk.shape)),order='F')
-	# 	writer.write(ao_chunk_out)
+	ao_chunk_out = np.zeros((writer.chunk_size,writer.n_ao_channels),writer.ao_dtype)
+	amp = [5,1,5,1]
+	while count < 50000:
+		count +=1
+		print count
+		ao_chunk = np.random.randn(writer.chunk_size,writer.n_ao_channels)
+		for kch in range(writer.n_ao_channels):
+			ao_chunk_out[:,kch] = writer.ao_converter.from_physical(ao_chunk[:,kch]*amp[kch]).astype(writer.ao_dtype)
+			# import ipdb; ipdb.set_trace()
+		# ao_chunk_out = np.reshape(ao_chunk_out,(1,np.prod(ao_chunk.shape)),order='F')
+			writer.write(ao_chunk_out)
 	# 	# writer.write(np.reshape(ao_chunk_out,(1,np.prod(ao_chunk.shape)),order='C').tostring())
 

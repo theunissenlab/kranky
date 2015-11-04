@@ -19,8 +19,8 @@ try:
 except ImportError:
     ComediWriter = None
 
-trial_queue_size = 2 # FifoFileBuffernumber of trials to load into queue
-data_queue_size = 1
+trial_queue_size = 5 # FifoFileBuffernumber of trials to load into queue
+data_queue_size = 5
 
 
 # dtype_out = np.dtype(np.int16)
@@ -36,8 +36,7 @@ class PlaybackController(object):
         self.pcm = None
         self.pcm_type = None
         self.dtype_out = None 
-        self.periodsize = 1024#2**12
-
+        self.periodsize = 1024#2**12sa
         self.trial_queue = Queue.Queue(maxsize=trial_queue_size)
         self.data_queue = Queue.Queue(maxsize=data_queue_size)
         self.message_queue = Queue.Queue()
@@ -76,12 +75,22 @@ class PlaybackController(object):
     def connect_to_comedi(self,cardidx=None):
         if self.pcm is not None:
             pass
-        # run_aad_thread()
         self.pcm = ComediWriter(dfname = '/dev/comedi0',n_ao_channels = self.params['n_ao_channels'],rate=self.params['ao_freq'],chunk_size=self.periodsize)
         self.pcm_type = 'comedi'
         self.dtype_out = np.dtype(self.pcm.ao_dtype)
         self.ttl_height_rel = 0.5
         pass
+
+    def ao_write_complete(self):
+        if self.pcm_type=='comedi':
+            chunk_size_bytes = self.periodsize*self.params['n_ao_channels']*self.dtype_out.itemsize
+            if self.pcm.ao_subdevice.get_buffer_contents() > chunk_size_bytes:
+                return False
+            else:
+                return True
+        else: 
+            return True
+
 
 def load_rc_file(fname, stimuli_dir=None):
     params = dict(default_params)
@@ -113,6 +122,7 @@ def parse_stim(params,parts):
     stim['n_aochs'] = 0
     stim['aochs'] = []
     stim['ttlchs']= []
+    stim_name_parts=[]
     for k,part in enumerate(parts):
         if 'ttl-' in part:
             ch={}
@@ -127,17 +137,19 @@ def parse_stim(params,parts):
                 ch['fname']=fname
                 ch['stimset']=stimset
                 ch['name']=name
+
             else: # see if kranky should generate this
                 if 'kranky:' in fname:
                     ch['type']='kranky-ttl'
                     ch['command']=fname.strip('kranky')
                     ch['fname']=None
-                    ch['stimset']=None
+                    ch['stimset']='kranky'
                     ch['name']=name
                 else:
                     raise Exception('Error in ''stim add'' command format for part:\n %s' % (part))
             stim['ttlchs'].append(ch)
             stim['n_ttlchs']+=1
+            stim_name_parts.append('ttl:%s/%s' % (ch['stimset'], ch['name']))
         else: # otherwise its an analog channel. always double chcek your channels before she blows
             ch={}
             ch['type']='ao'
@@ -155,7 +167,9 @@ def parse_stim(params,parts):
                 raise Exception('Error in ''stim add'' command format for part:\n %s' % (part))
             stim['aochs'].append(ch)
             stim['n_aochs']+=1
+            stim_name_parts.append('ao:%s/%s' % (ch['stimset'], ch['name']))
             pass
+    stim['name'] = '-'.join(stim_name_parts)
     verify_stim(params,stim)
     return stim
 
@@ -174,6 +188,7 @@ def verify_stim(params, stim):
 
 def load_stim(params, stim):
     nsamples_max = 0
+
     for k,ttlch in enumerate(stim['ttlchs']):
         if ttlch['type']=='file-ttl':
             wf=load_wf(params,ttlch['fname'])
@@ -320,6 +335,12 @@ def condition_ttl(wf, dtype_out, ttl_height_rel):
     return wf_out
 
 def load_trial_data(pbc,trial,ktrial, record_control_trial = False, record_control_trial_length = 1, record_control_pulse_length=10e-3):
+    if trial is None:
+        trial = {}
+    else:
+        trial=trial.copy()
+    if ktrial is None:
+        ktrial = -1
     if 'stim' in trial.keys():
         stim=trial['stim']
         stim = load_stim(pbc.params, stim)
@@ -406,7 +427,9 @@ def load_trial_data(pbc,trial,ktrial, record_control_trial = False, record_contr
             if any(ao_is_used[ao_ttl_ch_idxs]):
                 raise Exception('Error trial %d: ttl channel(s) have already been assigned' % (ktrial))
             data[ao_ttl_ch_idxs,:]=condition_ttl(ttlwfs, pbc.dtype_out, pbc.ttl_height_rel)
-    return data
+    trial['data']=data
+    trial['ktrial']=ktrial
+    return trial
 
 # def load_intro_data(pbc, intro_length=1, intro_pulse_length=10e-3):
 #     data = np.zeros((pbc.pbc['n_ao_channels'],pbc.params['ao_freq']*intro_length))
@@ -465,71 +488,71 @@ def trial_loader(pbc, playback_plan):
     global runflag, playflag
     # add intro
     sample_count = 0
-    trial_data = load_trial_data(pbc, {},-1,record_control_trial=True)
-    # trial_data[0,: ]= np.random.normal(0,2**20,trial_data[0,:].shape); trial_data[0,1]=2**29
-    pbc.trial_queue.put(trial_data)
-    sample_count += trial_data.shape[1]
+    trial = load_trial_data(pbc, {},-1,record_control_trial=True)
+    pbc.trial_queue.put(trial)
+    sample_count += trial['data'].shape[1]
     playflag = True
     # loop thru trials, adding to que
     for ktrial, trial in enumerate(playback_plan['trials']):
         if not runflag:
             return
         # print "generating trial: %d" % ktrial
-        trial_data = load_trial_data(pbc, trial, ktrial)
+        trial = load_trial_data(pbc, trial, ktrial)
         # trial_data[0,: ]= np.random.normal(0,2**20,trial_data[0,:].shape); trial_data[0,1]=2**29
-        pbc.trial_queue.put(trial_data)
-        pbc.message_queue.put('trial[%d]: stim_index=%d; ao_range=[%d, %d]\n' % (ktrial, trial['stim']['stim_idx'], sample_count, sample_count+trial_data.shape[1]))
-        sample_count += trial_data.shape[1]
+        pbc.trial_queue.put(trial)
+        pbc.message_queue.put('trial[%d]: stim_index=%d; ao_range=[%d, %d]\n' % (ktrial, trial['stim']['stim_idx'], sample_count, sample_count+trial['data'].shape[1]))
+        sample_count += trial['data'].shape[1]
     # add ending
-    trial_data = load_trial_data(pbc, {}, -1,record_control_trial=True)
-    pbc.trial_queue.put(trial_data)
+    trial = load_trial_data(pbc, {}, -1,record_control_trial=True)
+    pbc.trial_queue.put(trial)
     # add stop sig
     pbc.trial_queue.put("STOP")
     pass
 
 def data_loader(pbc):
     chunk_length = pbc.periodsize*pbc.params['n_ao_channels']
-
     chunk_length_bytes = chunk_length*pbc.dtype_out.itemsize
     buff = FifoFileBuffer()
-    nsafeframes = int(float(pbc.params['ao_freq'])/chunk_length)
+    nsafeframes = int(float(pbc.params['ao_freq'])/pbc.periodsize)
     global runflag, playflag
     while not playflag:
         pass
 
     # add some chunks to start
-    for k in range(0,nsafeframes):
-        pbc.data_queue.put(condition_ttl(np.zeros((4,chunk_length)),pbc.dtype_out,pbc.ttl_height_rel).tostring())
-
+    buff.write(condition_ttl(np.zeros((1,chunk_length*nsafeframes)),pbc.dtype_out,pbc.ttl_height_rel).tostring())
 
     trial_count = 0
     chunk_count = 0
+    trials_done = False
     while runflag:
-        if buff.available < chunk_length_bytes:
+        if buff.available <= chunk_length_bytes:
             if pbc.trial_queue.qsize() > 0:
-                trial_data = pbc.trial_queue.get()
-                if trial_data is not "STOP":
+                trial = pbc.trial_queue.get()
+                if trial is not "STOP":
                     trial_count += 1
-                    print "Trial: %d" % (trial_count)
                     # trial_data[0,1]=2**30
-                    trial_data = np.reshape(trial_data,(1,np.prod(trial_data.shape)),order='F')
+                    trial_data = np.reshape(trial['data'],(1,np.prod(trial['data'].shape)),order='F')
                     buff.write(trial_data.tostring())
+                    if trial['ktrial']>=0 and 'stim' in trial.keys():
+                        print "Trial %d:  %s" % (trial['ktrial'], trial['stim']['name'])
+                    elif trial['ktrial']==-1:
+                        print "Sending Record Control Signal"
+
                     
                 else: # exit:  dump rest of data and pass along stop message
-                    pbc.data_queue.put(buff.read())
-                    # add some chunks to end
-                    for k in range(0,nsafeframes):
-                        pbc.data_queue.put(np.zeros((1,chunk_length),dtype=pbc.dtype_out).tostring())
-                    pbc.data_queue.put("STOP")
-                    break
-
+                    trials_done = True
+                    buff.write(condition_ttl(np.zeros((1,chunk_length*nsafeframes)),pbc.dtype_out,pbc.ttl_height_rel).tostring())
+                    # buff.write(condition_wf(1000*np.random.randn(1,chunk_length*nsafeframes*1),pbc.dtype_out).tostring())
                 # import ipdb; ipdb.set_trace()
         if buff.available >= chunk_length_bytes:
             # import ipdb; ipdb.set_trace()
             pbc.data_queue.put(buff.read(size=chunk_length_bytes))
             chunk_count += 1
+        elif trials_done and (buff.available < chunk_length_bytes):
+            pbc.data_queue.put(buff.read())
+            break
             # print "loading chunk %d" % chunk_count
-
+    pbc.data_queue.put("STOP")
     pass
 
 def ao_thread(pbc):
@@ -543,8 +566,10 @@ def ao_thread(pbc):
             pbc.pcm.write(chunk)
             count += 1
         else:
-            break
-    runflag=False
+            while not pbc.ao_write_complete():
+                pass    
+            print 'ao complete after %d chunks' % count
+            runflag=False
     pass
 
 
@@ -554,7 +579,7 @@ def write_rec_header(recfid, params, stimset):
     for key in params.keys():
         recfid.write('%s: %s\n' % (key, str(params[key])))
     for stim in stimset['stims']:
-        recfid.write('stim[%d]: file="%s";\n' % (stim['stim_idx'], stim['fname']))
+        recfid.write('stim[%d]: file="%s";\n' % (stim['stim_idx'], stim['name']))
 
 def find_data_location(data_path_root, DIR_PRE):
     DIR_NOW = os.listdir(data_path_root)
@@ -575,9 +600,6 @@ def empty_que(que):
 
 def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/jknowles/science_code/GUI/Builds/Linux/build/", require_data = True):
     global runflag, playflag
-    # open new .rec file
-    # write static part of .rec
-    # setup connection to daq
 
     pbc = PlaybackController(params)
     if len(cardidx)<2:
@@ -587,14 +609,10 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
         pbc.connect_to_comedi()
     # import ipdb; ipdb.set_trace()
 
-
-
     # get dir list
     if require_data:
         DIR_PRE = os.listdir(data_path_root)
-    # runflag = True
-    # trial_loader(pbc,playback_plan)
-    # return None
+
     #start threads going
     runflag = True
     playflag = False
@@ -604,7 +622,7 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
     t_dl.start()
     t_ao = threading.Thread(target=ao_thread, args=(pbc,))
     t_ao.start()
-
+    threads = [t_tl, t_dl, t_ao]
     data_path = None
     try:
         while runflag and require_data: # initially look for data directory
@@ -642,19 +660,23 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
             pbc.trial_queue.mutex.release_lock()
         except:
             pass
-
         try:
             empty_que(pbc.data_queue)
             pbc.data_queue.put("STOP", block = False)
             pbc.data_queue.mutex.release_lock()
         except:
             pass
-        # import ipdb; ipdb.set_trace()
         try:
             pbc.message_queue.mutex.release_lock()
             pass
         except:
             pass
+        for thread in threads:
+            try:
+                thread.join()
+            except:
+                pass
+
     pass
 
 
