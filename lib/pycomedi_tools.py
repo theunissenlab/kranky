@@ -90,7 +90,6 @@ def prepare_do_command(subdevice, channels, frequency):
     the parts we want.
     """
     # command = subdevice.get_cmd_src_mask()
-    import ipdb; ipdb.set_trace()
     # command.chanlist = channels
     command.stop_src = _constant.TRIG_SRC.none
     command.stop_arg = 0
@@ -177,6 +176,7 @@ class ComediWriter(object):
 			raise Exception('Data Type not Recognized')
 
 aad_factor = (2**16-1)/15
+aad_offset = 0#2**15
 def run_aad_thread():
 	device = _Device(filename='/dev/comedi0')
 	device.open()
@@ -184,7 +184,7 @@ def run_aad_thread():
 	do_subdevice, do_channels = open_do_channels(device=device, subdevice=None, channels=[0,1,2,3,4,5,6,7])
 	aich = ai_channels[0]
 	aich.range=aich.find_range(unit=_constant.UNIT.volt,min=-10,max=10)
-	aich.apply_calibration()
+	# aich.apply_calibration()
 	# t_aad = threading.Thread(target=aad_thread, args=(aich, do_subdevice))
 	# t_aad.start()
 	p_aad = multiprocessing.Process(target=aad_thread, args=(aich, do_subdevice))
@@ -197,35 +197,28 @@ def aad_thread(aich, do_subdevice):
 	while True:
 		ai_int = int(np.round(np.mean(aich.data_read_n(1))/aad_factor))
 		do_subdevice.dio_bitfield(base_channel=0, write_mask=15, bits=ai_int)
-		# if ai_int!=last_int:
+		# if ai_int!=last_int:python 
 		# 	last_int = ai_int
 		# 	print ai_int
 		
 if __name__=="__main__":
-	# import ipdb; ipdb.set_trace()
 	run_aad_thread()
-	device = _Device(filename='/dev/comedi0')
-	device.open()
-	ao_subdevice, ao_channels = open_ao_channels_nonstream(device=device, subdevice=None, channels=[0],_range=0,aref=0)
-	aoch = ao_channels[0]
-	for k in range(0,16):
-	 	aoch.data_write(np.min(((k*aad_factor),2**16-1)))
-	 	time.sleep(1)
-	import ipdb; ipdb.set_trace()
-	writer = ComediWriter(rate=100000)
-	count = 0
-	amp = 5
-	# writer.start()
-	ao_chunk_out = np.zeros((writer.chunk_size,writer.n_ao_channels),writer.ao_dtype)
-	amp = [5,1,5,1]
-	while count < 50000:
-		count +=1
-		print count
-		ao_chunk = np.random.randn(writer.chunk_size,writer.n_ao_channels)
-		for kch in range(writer.n_ao_channels):
-			ao_chunk_out[:,kch] = writer.ao_converter.from_physical(ao_chunk[:,kch]*amp[kch]).astype(writer.ao_dtype)
-			# import ipdb; ipdb.set_trace()
-		# ao_chunk_out = np.reshape(ao_chunk_out,(1,np.prod(ao_chunk.shape)),order='F')
-		writer.write(ao_chunk_out)
-		# writer.write(np.reshape(ao_chunk_out,(1,np.prod(ao_chunk.shape)),order='C').tostring())
+	# import ipdb; ipdb.set_trace()
+	# writer = ComediWriter(rate=100000) #, dfname='/dev/comedi0_subd0')
+	# import ipdb; ipdb.set_trace()
+	# count = 0
+	# amp = 5
+	# # writer.start()
+	# ao_chunk_out = np.zeros((writer.chunk_size,writer.n_ao_channels),writer.ao_dtype)
+	# amp = [5,1,5,1]
+	# while count < 50000:
+	# 	count +=1
+	# 	print count
+	# 	ao_chunk = np.random.randn(writer.chunk_size,writer.n_ao_channels)
+	# 	for kch in range(writer.n_ao_channels):
+	# 		ao_chunk_out[:,kch] = writer.ao_converter.from_physical(ao_chunk[:,kch]*amp[kch]).astype(writer.ao_dtype)
+	# 		# import ipdb; ipdb.set_trace()
+	# 	# ao_chunk_out = np.reshape(ao_chunk_out,(1,np.prod(ao_chunk.shape)),order='F')
+	# 	writer.write(ao_chunk_out)
+	# 	# writer.write(np.reshape(ao_chunk_out,(1,np.prod(ao_chunk.shape)),order='C').tostring())
 

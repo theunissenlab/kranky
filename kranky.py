@@ -15,12 +15,12 @@ import traceback
 # from lib import zmq_tools as zt
 from lib.fifo import FifoFileBuffer
 try:
-    from lib.pycomedi_tools import ComediWriter, run_aad_thread, aad_factor
+    from lib.pycomedi_tools import ComediWriter, run_aad_thread, aad_factor, aad_offset
 except ImportError:
     ComediWriter = None
 
 trial_queue_size = 2 # FifoFileBuffernumber of trials to load into queue
-data_queue_size = 10
+data_queue_size = 1
 
 
 # dtype_out = np.dtype(np.int16)
@@ -36,8 +36,7 @@ class PlaybackController(object):
         self.pcm = None
         self.pcm_type = None
         self.dtype_out = None 
-        self.periodsize = 1024
-        self.nchannels = params['nchannels']
+        self.periodsize = 1024#2**12
 
         self.trial_queue = Queue.Queue(maxsize=trial_queue_size)
         self.data_queue = Queue.Queue(maxsize=data_queue_size)
@@ -50,13 +49,16 @@ class PlaybackController(object):
             pass
         self.pcm = aa.PCM(type=aa.PCM_PLAYBACK, mode=aa.PCM_NORMAL, card='plughw:%d,0'%cardidx)
         # self.pcm = aa.PCM(type=aa.PCM_PLAYBACK, mode=aa.PCM_NORMAL, card='plughw:%d,0'%cardidx)
-        self.pcm.setchannels(self.nchannels)
+        self.pcm.setchannels(self.params['n_ao_channels'])
         self.pcm.setrate(self.params['ao_freq'])
         self.pcm.setperiodsize(self.periodsize)
         self.pcm.setformat(aa.PCM_FORMAT_S16_LE)
         self.dtype_out = np.dtype(np.int16)
         self.ttl_height_rel = 1
-        mixer = aa.Mixer(control='DAC', cardindex = cardidx)
+        try:
+            mixer = aa.Mixer(control='DAC', cardindex = cardidx)
+        except:
+            pass
         try:
             mixer.setvolume(100)
         except:
@@ -75,7 +77,7 @@ class PlaybackController(object):
         if self.pcm is not None:
             pass
         # run_aad_thread()
-        self.pcm = ComediWriter(rate=self.params['ao_freq'],chunk_size=self.periodsize)
+        self.pcm = ComediWriter(dfname = '/dev/comedi0',n_ao_channels = self.params['n_ao_channels'],rate=self.params['ao_freq'],chunk_size=self.periodsize)
         self.pcm_type = 'comedi'
         self.dtype_out = np.dtype(self.pcm.ao_dtype)
         self.ttl_height_rel = 0.5
@@ -119,7 +121,7 @@ def parse_stim(params,parts):
             head,tail = os.path.split(os.path.dirname(fname))
             stimset = tail
             if check_if_fname_exists(fname) is not False:
-                ch['fname'=check_if_fname_exists(fname)
+                ch['fname']=check_if_fname_exists(fname)
                 ch['type']='file-ttl'
                 ch['command']=None
                 ch['fname']=fname
@@ -139,12 +141,12 @@ def parse_stim(params,parts):
         else: # otherwise its an analog channel. always double chcek your channels before she blows
             ch={}
             ch['type']='ao'
-            fname = part.part.strip('ao-')
+            fname = part.strip('ao-')
             name = os.path.basename(fname)
             head,tail = os.path.split(os.path.dirname(fname))
             stimset = tail
-            if check_if_fname_exists(fname) is not False:
-                ch['fname']=check_if_fname_exists(fname)
+            if check_if_fname_exists(fname,stimset,name,stimuli_dir) is not False:
+                ch['fname']=check_if_fname_exists(fname,stimset,name,stimuli_dir)
                 ch['command']=None
                 ch['stimset']=stimset
                 ch['name']=name
@@ -166,15 +168,16 @@ def check_if_fname_exists(fname,stimset,name,stimuli_dir):
     return working_one
 
 def verify_stim(params, stim):
+    stim=stim.copy()
     load_stim(params, stim)
     pass
 
 def load_stim(params, stim):
     nsamples_max = 0
     for k,ttlch in enumerate(stim['ttlchs']):
-        if ttlch['type'] is 'file-ttl':
-            wf=load_wf(ttlch['fname'])
-        elif ttlch['type'] is 'kranky-ttl':
+        if ttlch['type']=='file-ttl':
+            wf=load_wf(params,ttlch['fname'])
+        elif ttlch['type']=='kranky-ttl':
             raise Exception('kranky generation not yet supported.  check back soon says the duck')
         else:
             raise Exception('Bad ch type ttl %d: %s' % (k,ttlch['type']))
@@ -183,8 +186,8 @@ def load_stim(params, stim):
         stim['ttlchs'][k]['wf'] = wf
         stim['ttlchs'][k]['nsamples']=len(wf)
     for k,aoch in enumerate(stim['aochs']):
-        if ao['type'] is 'file-ao':
-            wf=load_wf(aoch['fname'])
+        if aoch['type']=='file-ao':
+            wf=load_wf(params,aoch['fname'])
         else:
             raise Exception('Bad ch type ao %d: %s' % (k,aoch['type']))
         nsamples_max = np.max((nsamples_max,len(wf)))
@@ -195,14 +198,14 @@ def load_stim(params, stim):
 
 def load_wf(params, fname):
 
-    if stim['fname'][-4:] == '.raw':
-        fid = open(stim['fname'],'r')
+    if fname[-4:] == '.raw':
+        fid = open(fname,'r')
         dt = np.dtype('int16').newbyteorder('>')
         wf = np.fromfile(fid, dtype = dt)
         fid.close()
 
-    elif stim['fname'][-4:] == '.wav':
-        wfid = wave.open(stim['fname'],'r')
+    elif fname[-4:] == '.wav':
+        wfid = wave.open(fname,'r')
         # wlen = wave.getnframes()
         wf = np.array(wfid.readframes(-1))
         if wfid.getsampwidth() == 2:
@@ -213,7 +216,7 @@ def load_wf(params, fname):
         else:
             error('bytesize not supported')
         if wfid.getframerate() != params['ao_freq']:
-            raise(Exception('Frame rate of file %s does not match ao_rate\n ao_rate=%d\n file rate=%d' % (stim['fname'], params['ao_freq'],wfid.getframerate())))
+            raise(Exception('Frame rate of file %s does not match ao_rate\n ao_rate=%d\n file rate=%d' % (fname, params['ao_freq'],wfid.getframerate())))
         wfid.close()
     else: 
         raise(Exception('Unknown file type'))
@@ -316,51 +319,111 @@ def condition_ttl(wf, dtype_out, ttl_height_rel):
         wf_out[wf!=0]=ttl_value
     return wf_out
 
-def load_trial_data(pbc,trial,ktrial):
+def load_trial_data(pbc,trial,ktrial, record_control_trial = False, record_control_trial_length = 1, record_control_pulse_length=10e-3):
+    if 'stim' in trial.keys():
+        stim=trial['stim']
+        stim = load_stim(pbc.params, stim)
+        # load the ao and ttl channel wfs into nump mats
+        aowfs = np.zeros((stim['n_aochs'],stim['nsamples_max']))
+        ttlwfs = np.zeros((stim['n_ttlchs'],stim['nsamples_max']))
+        for k,ttlch in enumerate(stim['ttlchs']):
+            ttlwfs[k,0:ttlch['nsamples']] = ttlch['wf']
+        for k,aoch in enumerate(stim['aochs']):
+            aowfs[k,0:aoch['nsamples']]=condition_wf(aoch['wf'], pbc.dtype_out)
+        nsamples = stim['nsamples_max']
+        trigger0_wf, hio, lowo = generate_trigger(pbc.params, nsamples, trial_idx = ktrial)
+        record_control_wf = np.zeros((1,nsamples))
+    elif record_control_trial: # generate record control wf
+        nsamples = record_control_trial_length * pbc.params['ao_freq']
+        idx0 = 1
+        idx1 = int(round(float(record_control_pulse_length)*pbc.params['ao_freq'])+idx0)
+        record_control_wf = np.zeros((nsamples))
+        record_control_wf[idx0:idx1]=1
+    else:
+        raise Exception('No Trial info given')
 
-    stim=trial['stim']
-    # load the ao and ttl channel wfs into nump mats
-    aowfs = np.zeros((stim['n_aochs'],stim['nsamples_max']))
-    ttlwfs = np.zeros((stim['n_ttlchs'],stim['nsamples_max']))
-    for k,ttlch in enumerate(stim['ttlchs']):
-        ttlwfs[k,0:ttlch['nsamples']]=condition_ttl(ttlch['wf'])
-    for k,aoch in enumerate(stim['aochs']):
-        aowfs[k,0:aoch['nsamples']]=condition_aoch
 
+    # generate output data
+    data=condition_wf(np.zeros((pbc.params['n_ao_channels'],nsamples),pbc.dtype_out), pbc.dtype_out)
+    ao_is_used=np.zeros(pbc.params['n_ao_channels'], np.bool)
+    
+    # add record control as analog-ttl
+    if pbc.params['record_control_channel']>=0: # if record control is an ao channel, saet it
+        if ao_is_used[pbc.params['record_control_channel']]:
+            raise Exception('Error: Record channel set to %d but it has already been assigned' % (pbc.params['record_control_channel']))
+        data[pbc.params['record_control_channel'],:] = condition_ttl(record_control_wf, pbc.dtype_out, pbc.ttl_height_rel)
 
-    # stim0_wf = condition_wf(load_stim(pbc.params, trial['stim']), pbc.dtype_out)
+    # add trigger channel as analog-ttl
+    if not record_control_trial and pbc.params['trigger_channel']>=0: # if trigger channel is an ao channel
+        if ao_is_used[pbc.params['trigger_channel']]:
+            raise Exception('Error: Trigger channel set to %d but it has already been assigned' % (pbc.params['trigger_channel']))
+        data[pbc.params['trigger_channel'],:]= condition_ttl(trigger0_wf, pbc.dtype_out, pbc.ttl_height_rel)
+        ao_is_used[pbc.params['trigger_channel']]=True
+    
+    ## now add analog wfs
+    if not record_control_trial:
+        if any(ao_is_used[0:len(stim['aochs'])]):
+            raise Exception('Error trial %d: ao channel(s) have already been assigned' % (ktrial))
+        else:
+            data[0:len(stim['aochs']),:]=aowfs
+            ao_is_used[0:len(stim['aochs'])]= True
 
-    # stim1_wf = np.zeros(stim0_wf.shape)
-    # stim1_wf = condition_ttl(stim1_wf, pbc.dtype_out, pbc.ttl_height_rel)
-    # stim2_wf = np.zeros(len(stim0_wf)).astype(dtype_out)
-    # trigger0_wf, hio, lowo = generate_trigger(pbc.params, len(stim0_wf), trial_idx = ktrial)
-    # trigger0_wf_copy = trigger0_wf *15 * aad_factor
-    # trigger0_wf = condition_ttl(trigger0_wf,pbc.dtype_out, pbc.ttl_height_rel)
-    # ttl_data 
-    # data=np.zeros((4,len(stim0_wf)),pbc.dtype_out)
-    # data[0,:]=stim0_wf
-    # data[1,:]=trigger0_wf_copy
-    #data[2,:]=stim1_wf
-    # data[3,:]=trigger0_wf
-    # import ipdb; ipdb.set_trace()
+    ## now if do_aad then calculate the aad_wf from the do_channels
+    if pbc.params['do_aad']: 
+        aad_dos = np.zeros((4,nsamples), np.bool)
+        aad_is_used = np.zeros(4, np.bool)
+
+        # if record control is aad then add it to aad_dos
+        if pbc.params['record_control_channel']<0: # if record control is an ao channel, saet it
+            if aad_is_used[-pbc.params['record_control_channel']]:
+                raise Exception('Error: Record channel set to aad ch %d but it has already been assigned' % (pbc.params['trigger_channel']))
+            aad_dos[-pbc.params['record_control_channel'],:] = record_control_wf.astype(np.bool)
+            aad_is_used[-pbc.params['record_control_channel']]=True
+        # add trigger channel as analog-ttl
+        if not record_control_trial and pbc.params['trigger_channel']<0: # if trigger channel is an ao channel
+            if aad_is_used[-pbc.params['trigger_channel']]:
+                raise Exception('Error: Trigger channel set to aad ch %d but it has already been assigned' % (pbc.params['trigger_channel']))
+            aad_dos[-pbc.params['trigger_channel'],:]= trigger0_wf.astype(np.bool)
+            aad_is_used[pbc.params['trigger_channel']]=True
+        # add all stimulus ttlwfs to aad_dos
+        if not record_control_trial:
+            aad_dos[0:stim['n_ttlchs']]=ttlwfs.astype(np.bool)
+        # generate aad wf from aad_dos
+        aad_dos = np.vstack((aad_dos, np.zeros((4,nsamples),np.bool)))
+        aad_ba = bitarray(np.reshape(aad_dos, (np.prod(aad_dos.shape)), order='F').tolist(), endian='little')
+        aad_wf = np.fromstring(aad_ba.tostring(),np.uint8).astype(pbc.dtype_out)
+        # add aad wf to analog out data
+        if ao_is_used[pbc.params['aad_channel']]:
+            raise Exception('Error: Add channel set to %d but it has already been assigned' % (pbc.params['aad_channel']))
+        # import ipdb; ipdb.set_trace()
+        data[pbc.params['aad_channel'],:]=aad_wf*aad_factor + aad_offset
+        # import ipdb; ipdb.set_trace()
+        ao_is_used[pbc.params['aad_channel']]=True
+        pass
+    else: ## otherwise add the digital channels as analog_digital channels
+        if not record_control_trial:
+            ao_ttl_ch_idxs = range(stim['n_aochs'], stim['n_ttlchs'])
+            if any(ao_is_used[ao_ttl_ch_idxs]):
+                raise Exception('Error trial %d: ttl channel(s) have already been assigned' % (ktrial))
+            data[ao_ttl_ch_idxs,:]=condition_ttl(ttlwfs, pbc.dtype_out, pbc.ttl_height_rel)
     return data
 
-def load_intro_data(pbc, intro_length=1, intro_pulse_length=10e-3):
-    data = np.zeros((4,pbc.params['ao_freq']*intro_length))
-    idx0 = 1;
-    idx1 = round(float(intro_pulse_length)*pbc.params['ao_freq'])+idx0
-    data[2,idx0:idx1]=1
-    data = condition_ttl(data,pbc.dtype_out, pbc.ttl_height_rel)
-    return data
-def load_end_data(pbc, end_length=1,end_pulse_length=10e-3):
-    data = np.zeros((4,pbc.params['ao_freq']*end_length))
-    # data[3,:] =-1*scale_factor
-    idx0=1
-    idx1 = data.shape[1]-float(end_pulse_length)*pbc.params['ao_freq']
-    data[2,idx0:idx1]=1
-    data=condition_ttl(data,pbc.dtype_out,pbc.ttl_height_rel)
-    # import ipdb; ipdb.set_trace()
-    return data
+# def load_intro_data(pbc, intro_length=1, intro_pulse_length=10e-3):
+#     data = np.zeros((pbc.pbc['n_ao_channels'],pbc.params['ao_freq']*intro_length))
+#     idx0 = 1;
+#     idx1 = round(float(intro_pulse_length)*pbc.params['ao_freq'])+idx0
+#     data[2,idx0:idx1]=1
+#     data = condition_ttl(data,pbc.dtype_out, pbc.ttl_height_rel)
+#     return data
+# def load_end_data(pbc, end_length=1,end_pulse_length=10e-3):
+#     data = np.zeros((4,pbc.params['ao_freq']*end_length))
+#     # data[3,:] =-1*scale_factor
+#     idx0=1
+#     idx1 = data.shape[1]-float(end_pulse_length)*pbc.params['ao_freq']
+#     data[2,idx0:idx1]=1
+#     data=condition_ttl(data,pbc.dtype_out,pbc.ttl_height_rel)
+#     # import ipdb; ipdb.set_trace()
+#     return data
 
 
 def write_playback_audio_file(params, stimset, playback_plan, output_filename):
@@ -377,7 +440,7 @@ def write_playback_audio_file(params, stimset, playback_plan, output_filename):
     for stim in stimset['stims']:
         recfid.write('stim[%d]: file="%s";\n' % (stim['stim_idx'], stim['fname']))
     owfid=wave.open(output_filename,'wb')
-    owfid.setnchannels(4)
+    owfid.setnchannels(params['n_ao_channels'])
     owfid.setframerate(params['ao_freq'])
     owfid.setsampwidth(nbytes)
     lastnsamp = 0
@@ -402,7 +465,7 @@ def trial_loader(pbc, playback_plan):
     global runflag, playflag
     # add intro
     sample_count = 0
-    trial_data = load_intro_data(pbc)
+    trial_data = load_trial_data(pbc, {},-1,record_control_trial=True)
     # trial_data[0,: ]= np.random.normal(0,2**20,trial_data[0,:].shape); trial_data[0,1]=2**29
     pbc.trial_queue.put(trial_data)
     sample_count += trial_data.shape[1]
@@ -418,13 +481,14 @@ def trial_loader(pbc, playback_plan):
         pbc.message_queue.put('trial[%d]: stim_index=%d; ao_range=[%d, %d]\n' % (ktrial, trial['stim']['stim_idx'], sample_count, sample_count+trial_data.shape[1]))
         sample_count += trial_data.shape[1]
     # add ending
-    pbc.trial_queue.put(load_end_data(pbc))
+    trial_data = load_trial_data(pbc, {}, -1,record_control_trial=True)
+    pbc.trial_queue.put(trial_data)
     # add stop sig
     pbc.trial_queue.put("STOP")
     pass
 
 def data_loader(pbc):
-    chunk_length = pbc.periodsize*pbc.nchannels
+    chunk_length = pbc.periodsize*pbc.params['n_ao_channels']
 
     chunk_length_bytes = chunk_length*pbc.dtype_out.itemsize
     buff = FifoFileBuffer()
@@ -604,22 +668,31 @@ if __name__=="__main__":
     default_params['wav']=False
     default_params['require_data']=True
     default_params['cardidx']='comedi'
-    default_params['trigger_channel']=4
-    default_params['record_control_channel']=3
-    default_params['nchannels'] = 4
+    default_params['do_aad']=False
+    default_params['aad_channel']=None
+    default_params['record_control_channel']= 2
+    default_params['trigger_channel']=3
+    default_params['n_ao_channels'] = 4
     import argparse
     parser=argparse.ArgumentParser(prog='kranky')
-    parser.description = "Stimuluis Presenter for Neuroscience Experiments"
-    parser.epilog =  'Jeff Knowles, 2015; jeff.knowles@gmail.com'
+    parser.description = 'Stimuluis Presenter for Neuroscience Experiments. Jeff Knowles, 2015; jeff.knowles@gmail.com'
+    parser.epilog =  'Note: All optional arguments may also be entered into the rc file, with _ replacing - (eg data_dir instead of --data-dir)'
+    ## arguments
     parser.add_argument('rc_fname')
     parser.add_argument('-c', '--cardidx',help='alsa card number', type = str)
-    parser.add_argument('-n','--n-trials',help='trials help', type=int)
-    parser.add_argument('-r','--require-data', help='require that new data be found in data dur to continue',type=int)
-    parser.add_argument('-d','--data-dir',help='directory to look for data dir from data capture software')
-    parser.add_argument('-s','--stim-dir',help='directory containing stim-sets.  If the exact directory passed in the rc file isnt found, kranky looks for the stimset here.')
-    parser.add_argument('-o','--stim-order',help='How to order the stimuli. 0=in the order provided 2=randomly interleaved')
+    parser.add_argument('-n','--n-trials',help='number of trials to run', type=int)
+    parser.add_argument('-r','--require-data', type=int,help='require that new data be found in data dur to continue')
+    parser.add_argument('-d','--data-dir',type=int,help='directory to look for data dir from data capture software')
+    parser.add_argument('-s','--stim-dir',type=int,help='directory containing stim-sets.  If the exact directory passed in the rc file isnt found, kranky looks for the stimset here.')
+    parser.add_argument('-o','--stim-order',type=int,help='How to order the stimuli. 0=in the order provided 2=randomly interleaved')
+    parser.add_argument('--trigger-channel',type=int, help='Channel for timing trigger signal. If ch > 0, the signal is routed through analog output on the channel provided.  If trigger_channel < 0, the trigger is produced on an aad-ch, encoded on the aad output channel')
+    parser.add_argument('--record-control-channel',type=int,help='Channel for recording control signal. If ch > 0, the signal is routed through analog output on the channel provided.')
+    parser.add_argument('--do-aad', type = int,help='Specify whether to route channels through aad (analog->analog->digital.  If do_aad is false, then all negative channel numbers are ignored')
+    parser.add_argument('--aad-channel',type=int, help='Channel for aad (analog->analog->digital) output. Four ttl channels are encoded in one analog channel. If ch > 0, the signal is routed through analog output on the channel provided.  If trigger_channel < 0, the trigger is produced on an aad-ch, encoded on the aad output channel')
     parser.add_argument('--ao-freq',type=int)
+    parser.add_argument('--n-ao-channels',type=int)
     parser.add_argument('--wav',help='write a .wav file instead of doing playback')
+
 
     args = vars(parser.parse_args())
     rc_fname = args['rc_fname']
@@ -649,8 +722,6 @@ if __name__=="__main__":
     if False:
         for stim in stimset['stims']:
             print 'stim[%d]: file="%s";' % (stim['stim_idx'], stim['fname'])
-
-
     playback_plan=generate_playback_plan(params,stimset)
     if params['wav']:
         write_playback_audio_file(params, stimset, playback_plan, 'test.wav')
