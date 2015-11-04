@@ -10,13 +10,13 @@ import Queue
 import threading
 import alsaaudio as aa
 import traceback
-
+import argparse
 
 # from lib import zmq_tools as zt
 from lib.fifo import FifoFileBuffer
 try:
     from lib.pycomedi_tools import ComediWriter, run_aad_thread, aad_factor, aad_offset
-except ImportError:
+except ImportError as e:
     ComediWriter = None
 
 trial_queue_size = 5 # FifoFileBuffernumber of trials to load into queue
@@ -620,34 +620,38 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
     t_ao = threading.Thread(target=ao_thread, args=(pbc,))
     t_ao.start()
     threads = [t_tl, t_dl, t_ao]
-    data_path = None
+    curtime = datetime.datetime.now()
     try:
-        while runflag and require_data: # initially look for data directory
-            data_path=find_data_location(data_path_root, DIR_PRE)
-            if data_path is not None:
-                # now we have the dir, open new .rec.paf file and write params
-                rec_file_name = data_path + os.path.sep + "presentation.pbrec"
-                print "Found Corresponding data: %s" % data_path
-                print "Saving Rec File to: %s" % rec_file_name
-                recfid = open(rec_file_name,'w')
-                write_rec_header(recfid, pbc.params, stimset)
-                break
-            if pbc.message_queue.qsize() > 3 and require_data:
-                raise Exception("AI Data Not Found! Is Ephys Running?")
+        # save recording
+        if require_data: # if ephys data are required, look for new data in data_path_root/
+            data_path = None
+            while runflag: # initially look for data directory
+                data_path=find_data_location(data_path_root, DIR_PRE)
+                if data_path is not None:
+                    # now we have the dir, open new .rec.paf file and write params
+                    rec_file_name = data_path + os.path.sep + "presentation_%d-%d-%d_%d-%d-%d.pbrec" % (curtime.year, curtime.month, curtime.day, curtime.hour,curtime.minute,curtime.second)
+                    print "Found Corresponding data: %s" % data_path
+                    break
+                if pbc.message_queue.qsize() > 4 and require_data:
+                    raise Exception("AI Data Not Found! Is Ephys Running?")
+        else: 
+            rec_file_name = data_path_root + os.path.sep + "presentation_%d-%d-%d_%d-%d-%d.pbrec" % (curtime.year, curtime.month, curtime.day, curtime.hour,curtime.minute,curtime.second)
+        print "Saving Rec File to: %s" % rec_file_name
+        recfid = open(rec_file_name,'w')
+        write_rec_header(recfid, pbc.params, stimset)
+        # Now if data recfile is g2g start main loop
         while runflag:
             # write messages to recfile as they exist
             if pbc.message_queue.qsize() > 0:
                 message = pbc.message_queue.get(False)
-                if data_path is not None and message is not None:
-                    recfid.write(message)
-                    recfid.flush()
-
+                recfid.write(message)
+                recfid.flush()
             pass
+    except KeyboardInterrupt as e:
+        print "You stopped me with a KeyboardInterrupt. Don't forget to stop the recording if it's going!"
     except Exception as e:
         traceback.print_exc()
         raise e
-    else:
-        traceback.print_exc()
     finally:
         runflag = False
         playflag = False
@@ -692,7 +696,8 @@ if __name__=="__main__":
     default_params['record_control_channel']= 2
     default_params['trigger_channel']=3
     default_params['n_ao_channels'] = 4
-    import argparse
+    default_params['data_dir'] = os.getcwd()
+    default_params['stim_dir'] = '/home/jknowles/data/doupe_lab/stimuli/'
     parser=argparse.ArgumentParser(prog='kranky')
     parser.description = 'Stimuluis Presenter for Neuroscience Experiments. Jeff Knowles, 2015; jeff.knowles@gmail.com'
     parser.epilog =  'Note: All optional arguments may also be entered into the rc file, with _ replacing - (eg data_dir instead of --data-dir)'
@@ -701,8 +706,8 @@ if __name__=="__main__":
     parser.add_argument('-c', '--cardidx',help='alsa card number', type = str)
     parser.add_argument('-n','--n-trials',help='number of trials to run', type=int)
     parser.add_argument('-r','--require-data', type=int,help='require that new data be found in data dur to continue')
-    parser.add_argument('-d','--data-dir',type=int,help='directory to look for data dir from data capture software')
-    parser.add_argument('-s','--stim-dir',type=int,help='directory containing stim-sets.  If the exact directory passed in the rc file isnt found, kranky looks for the stimset here.')
+    parser.add_argument('-d','--data-dir',type=str,help='directory to look for data dir from data capture software')
+    parser.add_argument('-s','--stim-dir',type=str,help='directory containing stim-sets.  If the exact directory passed in the rc file isnt found, kranky looks for the stimset here.')
     parser.add_argument('-o','--stim-order',type=int,help='How to order the stimuli. 0=in the order provided 2=randomly interleaved')
     parser.add_argument('--trigger-channel',type=int, help='Channel for timing trigger signal. If ch > 0, the signal is routed through analog output on the channel provided.  If trigger_channel < 0, the trigger is produced on an aad-ch, encoded on the aad output channel')
     parser.add_argument('--record-control-channel',type=int,help='Channel for recording control signal. If ch > 0, the signal is routed through analog output on the channel provided.')
@@ -718,7 +723,7 @@ if __name__=="__main__":
     if args['stim_dir'] is not None:
         stimuli_dir = args['stim_dir']
     else:
-        stimuli_dir = "/home/jknowles/data/doupe_lab/stimuli"
+        stimuli_dir = default_params['stim_dir']
     # get params and stimset from rc
     params, stimset = load_rc_file(rc_fname, stimuli_dir=stimuli_dir)
     # override defaults with params
@@ -745,4 +750,4 @@ if __name__=="__main__":
     if params['wav']:
         write_playback_audio_file(params, stimset, playback_plan, 'test.wav')
     else:
-        run_playback(params['cardidx'], params, stimset, playback_plan, require_data = params['require_data'])
+        run_playback(params['cardidx'], params, stimset, playback_plan, require_data = params['require_data'], data_path_root=params['data_dir'])
