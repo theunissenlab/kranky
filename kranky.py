@@ -356,7 +356,7 @@ def load_trial_data(pbc,trial,ktrial, record_control_trial = False, record_contr
         record_control_wf = np.zeros((1,nsamples))
     elif record_control_trial: # generate record control wf
         nsamples = record_control_trial_length * pbc.params['ao_freq']
-        idx0 = 1
+        idx0 = 0
         idx1 = int(round(float(record_control_pulse_length)*pbc.params['ao_freq'])+idx0)
         record_control_wf = np.zeros((nsamples))
         record_control_wf[idx0:idx1]=1
@@ -487,10 +487,8 @@ def write_playback_audio_file(params, stimset, playback_plan, output_filename):
 def trial_loader(pbc, playback_plan):
     global runflag, playflag
     # add intro
-    sample_count = 0
     trial = load_trial_data(pbc, {},-1,record_control_trial=True)
     pbc.trial_queue.put(trial)
-    sample_count += trial['data'].shape[1]
     playflag = True
     # loop thru trials, adding to que
     for ktrial, trial in enumerate(playback_plan['trials']):
@@ -498,10 +496,7 @@ def trial_loader(pbc, playback_plan):
             return
         # print "generating trial: %d" % ktrial
         trial = load_trial_data(pbc, trial, ktrial)
-        # trial_data[0,: ]= np.random.normal(0,2**20,trial_data[0,:].shape); trial_data[0,1]=2**29
         pbc.trial_queue.put(trial)
-        pbc.message_queue.put('trial[%d]: stim_index=%d; ao_range=[%d, %d]\n' % (ktrial, trial['stim']['stim_idx'], sample_count, sample_count+trial['data'].shape[1]))
-        sample_count += trial['data'].shape[1]
     # add ending
     trial = load_trial_data(pbc, {}, -1,record_control_trial=True)
     pbc.trial_queue.put(trial)
@@ -523,6 +518,7 @@ def data_loader(pbc):
 
     trial_count = 0
     chunk_count = 0
+    sample_count = 0
     trials_done = False
     while runflag:
         if buff.available <= chunk_length_bytes:
@@ -530,13 +526,14 @@ def data_loader(pbc):
                 trial = pbc.trial_queue.get()
                 if trial is not "STOP":
                     trial_count += 1
-                    # trial_data[0,1]=2**30
                     trial_data = np.reshape(trial['data'],(1,np.prod(trial['data'].shape)),order='F')
                     buff.write(trial_data.tostring())
                     if trial['ktrial']>=0 and 'stim' in trial.keys():
                         print "Trial %d:  %s" % (trial['ktrial'], trial['stim']['name'])
+                        pbc.message_queue.put('trial[%d]: stim_index=%d; ao_range=[%d, %d]\n' % (trial['ktrial'], trial['stim']['stim_idx'], sample_count, sample_count+trial['data'].shape[1]))
                     elif trial['ktrial']==-1:
                         print "Sending Record Control Signal"
+                    sample_count += trial['data'].shape[1]
 
                     
                 else: # exit:  dump rest of data and pass along stop message
