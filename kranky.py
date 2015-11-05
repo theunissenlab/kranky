@@ -582,7 +582,7 @@ def find_data_location(data_path_root, DIR_PRE):
     DIR_NOW = os.listdir(data_path_root)
     unique = list(set(DIR_NOW)-set(DIR_PRE))
     if len(unique) > 0:
-         return data_path_root + unique[0]
+         return data_path_root + os.path.sep + unique[0]
     else:
         return None
 
@@ -648,7 +648,7 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
                 recfid.flush()
             pass
     except KeyboardInterrupt as e:
-        print "You stopped me with a KeyboardInterrupt. Don't forget to stop the recording if it's going!"
+        print "Hey, you stopped me with a KeyboardInterrupt. Just when I got in the groove. Don't forget to stop the recording if it's going!"
     except Exception as e:
         traceback.print_exc()
         raise e
