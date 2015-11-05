@@ -3,3 +3,5 @@
 *.wav
 *.paf
 *.o
+*.rec
+*.pbrec
