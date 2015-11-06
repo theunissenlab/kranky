@@ -15,17 +15,18 @@ The .rc file describes the stimuli and trial parameteres.  Arguments can also be
 
 ```
 ### example rc file
-stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1.raw
+
+# add the stimuli
+stim add ao:/tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1.raw 
 stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song2.raw
 stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1flipped.raw
 
-# stim list
+# set the parameters
 set ao_freq 40000
 set n_trials 10
 set stim_order 2
-set ramp_time 0
-set attenuation 15
-set attenuation2 0
+
+
 
 ```
 
@@ -44,6 +45,9 @@ https://github.com/Jeffknowles/GUI
 
 ## analog output
 Kranky is built to write output using alsa or comedi.  However, the program is constructed in such a way that makes it easy build a ao thread to play out in other systems.
+
+## digital output
+(will write up soon)
 
 ## output to .wav file
 Kranky can also write to a wav file:  
