@@ -59,8 +59,11 @@ if isstr(filename)
         error('File extension not ''.continuous''.');
     end
     fid = fopen(filename);
+    just_opened = true;
 else
     fid = filename;
+    just_opened=false;
+    
 end
 
 % get header info
@@ -102,7 +105,7 @@ numIdx = floor((filesize - NUM_HEADER_BYTES)/sum(blockBytes));
 %         info.ts = segRead('ts');
 %         info.nsamples = segRead('nsamples');
 %         if ~all(info.nsamples == SAMPLES_PER_RECORD)&& version >= 0.1, error('Found corrupted record'); end
-        if version >= 0.2, info.recNum = segRead('recNum'); end
+%         if version >= 0.2, info.recNum = segRead('recNum'); end
 %         data = segRead('data', 'b').*info.header.bitVolts; % read in data
         if isempty(range)
             data = segRead('data','b')*info.header.bitVolts;  
@@ -126,7 +129,9 @@ numIdx = floor((filesize - NUM_HEADER_BYTES)/sum(blockBytes));
 %         data = permute(reshape(segRead('data'), num_samples, num_channels, numIdx), [3 1 2]);
 %         data = (data-32768)./ permute(repmat(info.gain/1000,[1 1 num_samples]), [1 3 2]);
 % end
+if just_opened
 fclose(fid);
+end
 
 function seg = segRead(segName, mf)
     if nargin == 1, mf = 'l'; end

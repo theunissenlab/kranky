@@ -50,9 +50,6 @@ void vars_dump(FILE *out);
 
 /* stim.c */
 
-extern int n_stims;
-extern stim_struct *stims[];
-
 // void stim_plotdata_all(void);
 void stim_stop(char *why);
 void stimdata_reset(void);
