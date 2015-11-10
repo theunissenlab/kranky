@@ -452,9 +452,7 @@ def load_trial_data(pbc,trial,ktrial, record_control_trial = False, record_contr
         # add aad wf to analog out data
         if ao_is_used[pbc.params['aad_channel']]:
             raise Exception('Error: Add channel set to %d but it has already been assigned' % (pbc.params['aad_channel']))
-        # import ipdb; ipdb.set_trace()
         data[pbc.params['aad_channel'],:]=aad_wf*aad_factor + aad_offset
-        # import ipdb; ipdb.set_trace()
         ao_is_used[pbc.params['aad_channel']]=True
         pass
     else: ## otherwise add the digital channels as analog_digital channels
@@ -466,24 +464,6 @@ def load_trial_data(pbc,trial,ktrial, record_control_trial = False, record_contr
     trial['data']=data
     trial['ktrial']=ktrial
     return trial
-
-# def load_intro_data(pbc, intro_length=1, intro_pulse_length=10e-3):
-#     data = np.zeros((pbc.pbc['n_ao_channels'],pbc.params['ao_freq']*intro_length))
-#     idx0 = 1;
-#     idx1 = round(float(intro_pulse_length)*pbc.params['ao_freq'])+idx0
-#     data[2,idx0:idx1]=1
-#     data = condition_ttl(data,pbc.dtype_out, pbc.ttl_height_rel)
-#     return data
-# def load_end_data(pbc, end_length=1,end_pulse_length=10e-3):
-#     data = np.zeros((4,pbc.params['ao_freq']*end_length))
-#     # data[3,:] =-1*scale_factor
-#     idx0=1
-#     idx1 = data.shape[1]-float(end_pulse_length)*pbc.params['ao_freq']
-#     data[2,idx0:idx1]=1
-#     data=condition_ttl(data,pbc.dtype_out,pbc.ttl_height_rel)
-#     # import ipdb; ipdb.set_trace()
-#     return data
-
 
 def write_playback_audio_file(params, stimset, playback_plan, output_filename):
     # open new .rec.paf file
@@ -578,8 +558,7 @@ def data_loader(pbc):
                 else: # exit:  dump rest of data and pass along stop message
                     trials_done = True
                     buff.write(condition_ttl(np.zeros((1,chunk_length*nsafeframes)),pbc.dtype_out,pbc.ttl_height_rel).tostring())
-                    # buff.write(condition_wf(1000*np.random.randn(1,chunk_length*nsafeframes*1),pbc.dtype_out).tostring())
-                # import ipdb; ipdb.set_trace()
+                    # buff.write(condition_wf(1000*np.random.randn(1,chunk_length*nsafeframes*1),pbc.dtype_out).tostring()) # put out noise for debugging
         if buff.available >= chunk_length_bytes:
             # import ipdb; ipdb.set_trace()
             pbc.data_queue.put(buff.read(size=chunk_length_bytes))
@@ -729,17 +708,22 @@ if __name__=="__main__":
     default_params['stim_order'] = 2
     default_params['wav']=False
     default_params['require_data']=True
-    default_params['cardidx']='comedi'
+    if ComediWriter is not None:
+        default_params['cardidx']='comedi'
+    else: 
+        default_params['cardidx'] = '0'
     default_params['do_aad']=False
     default_params['aad_channel']=None
     default_params['record_control_channel']= 2
     default_params['trigger_channel']=3
     default_params['n_ao_channels'] = 4
     default_params['data_dir'] = os.getcwd()
-    default_params['stim_dir'] = '/hoe/jknowles/data/doupe_lab/stimuli/'
+    default_params['stim_dir'] = '/home/jknowles/data/doupe_lab/stimuli/'
     parser=argparse.ArgumentParser(prog='kranky')
     parser.description = 'Stimuluis Presenter for Neuroscience Experiments. Jeff Knowles, 2015; jeff.knowles@gmail.com'
-    parser.epilog =  'Note: All optional arguments may also be entered into the rc file, with _ replacing - (eg data_dir instead of --data-dir)'
+    parser.epilog =  ('Note: All optional arguments may also be entered into the rc file, by ommiting -- and replacing - ' + \
+                            'with _ (eg data_dir, n_ao_channels, require_data replace --data-dir, --n-ao-channels, --require-data, ext.)  ' + \
+                            'Command line args override rc file args, which override default params.') 
     ## arguments
     parser.add_argument('rc_fname')
     parser.add_argument('-c', '--cardidx',help='alsa card number', type = str)
