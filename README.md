@@ -18,7 +18,9 @@ By default, stimuli are assumed analog out channels unless they are specified as
 stim add aostim0.wav ttl-ttlstim0.wav
 stim add ao-aostim0.wav ttl-ttlstim0.wav
 ```
-these two entries are equivalent.  
+these two entries are equivalent.
+
+Here is an example rc file:    
 
 ```
 ### example rc file
@@ -36,9 +38,13 @@ set stim_order 2
 
 
 ## stimulus files
-Kranky accepts .wav files and raw binary (.raw) are 16 bit integers. All stimuli in a presentation should have the same sampling rate, but this is enforced for .wav files.  
-## .rec files
-.rec files save a record of the playback and capture for future analysis. kranky.py saves .pbrec files which contain all the information about the stimulus presentation as it happens. It similtaniously looks at the data coming in to write .rec from the .pbrec files.  .rec is .pbrec plus ai clock samples when the stimuli happened.
+Kranky accepts .wav files and raw binary (.raw) are 16 bit integers. All stimuli in a presentation should have the same sampling rate, but this is (can be) only checked for .wav files.  
+
+If kranky can't find the file with the path in the rc file, it will look for the inside 'stim_dir', under the assumption that the stimulus file resides in a subdirectory of 'stim_dir'.  
+
+
+## .pbrec and .rec files
+.rec files are a record of the playback and capture for future analysis. kranky saves .pbrec files which contain all the information about the stimulus presentation as it happens in 'data_dir', or inside the directory containing open-ephys data if it finds that directory in 'data-dir'. After an aquisition, the matlab function 'analysis_tools/write_kranky_recfile.m'  will parse the digital trigger data from open-ephys and write a '.rec' file, which is .pbrec plus ai clock samples when the stimuli happened.
 
 ## trigger system
 (will write up soon). 
@@ -63,10 +69,17 @@ Kranky can also write to a wav file:
 
 ```
 #!bash
-kranky -h
+./kranky -h
 usage: kranky [-h] [-c CARDIDX] [-n N_TRIALS] [-r REQUIRE_DATA] [-d DATA_DIR]
-              [-s STIM_DIR] [-o STIM_ORDER] [--ao-freq AO_FREQ] [--wav WAV]
+              [-s STIM_DIR] [-o STIM_ORDER]
+              [--trigger-channel TRIGGER_CHANNEL]
+              [--record-control-channel RECORD_CONTROL_CHANNEL]
+              [--do-aad DO_AAD] [--aad-channel AAD_CHANNEL]
+              [--ao-freq AO_FREQ] [--n-ao-channels N_AO_CHANNELS] [--wav WAV]
               rc_fname
+
+Stimuluis Presenter for Neuroscience Experiments. Jeff Knowles, 2015;
+jeff.knowles@gmail.com
 
 positional arguments:
   rc_fname
@@ -76,7 +89,7 @@ optional arguments:
   -c CARDIDX, --cardidx CARDIDX
                         alsa card number
   -n N_TRIALS, --n-trials N_TRIALS
-                        trials help
+                        number of trials to run
   -r REQUIRE_DATA, --require-data REQUIRE_DATA
                         require that new data be found in data dur to continue
   -d DATA_DIR, --data-dir DATA_DIR
@@ -89,8 +102,32 @@ optional arguments:
   -o STIM_ORDER, --stim-order STIM_ORDER
                         How to order the stimuli. 0=in the order provided
                         2=randomly interleaved
+  --trigger-channel TRIGGER_CHANNEL
+                        Channel for timing trigger signal. If ch > 0, the
+                        signal is routed through analog output on the channel
+                        provided. If ch < 0, the trigger is produced on an
+                        aad-ch, encoded on the aad output channel
+  --record-control-channel RECORD_CONTROL_CHANNEL
+                        Channel for recording control signal. If ch > 0, the
+                        signal is routed through analog output on the channel
+                        provided. If ch < 0, the record control is produced on
+                        an aad-ch, encoded on the aad output channel.
+  --do-aad DO_AAD       Specify whether to route channels through aad
+                        (analog->analog->digital. If do_aad is false, then all
+                        negative channel numbers are ignored
+  --aad-channel AAD_CHANNEL
+                        Channel for aad (analog->analog->digital) output. Four
+                        ttl channels are encoded in one analog channel. If ch
+                        > 0, the signal is routed through analog output on the
+                        channel provided. If trigger_channel < 0, the trigger
+                        is produced on an aad-ch, encoded on the aad output
+                        channel
   --ao-freq AO_FREQ
+  --n-ao-channels N_AO_CHANNELS
   --wav WAV             write a .wav file instead of doing playback
 
-
+Note: All optional arguments may also be entered into the rc file, by ommiting
+-- and replacing - with _ (eg data_dir, n_ao_channels, require_data replace
+--data-dir, --n-ao-channels, --require-data, ext.) Command line args override
+rc file args, which override default params.
 ```
