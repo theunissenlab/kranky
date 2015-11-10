@@ -47,9 +47,13 @@ If kranky can't find the file with the path in the rc file, it will look for the
 ## trigger system
 (will write up soon). 
 
-## open ephys
+## open ephys and record control
 kranky is built to run along with a special version of open ephys.  You can download my fork here:
-https://github.com/Jeffknowles/GUI
+https://github.com/Jeffknowles/GUI.  This fork has minor changes from the main version of open ephys to play nicely with kranky.  
+1) Record control interprets pulses and is more robust to possible bounces on the incoming ttl signal. 
+2) everytime recording is triggered, open-ephys makes a new data directory rather than appending on the data in the same directory. 
+
+You can use either open-ephys format or kwik format (selected in open ephys). The kranky/analysis_tools are written for the open-ephys format.  Apparently there are some issues with the (otherwise superior) kwik format getting corrupted.  See discussion [here](https://groups.google.com/forum/#!topic/klustaviewas/LmeDzuQLxgM)
 
 ## analog output
 Kranky is built to write output using alsa or comedi.  However, the program is constructed in such a way that makes it easy build a ao thread to play out in other systems.
