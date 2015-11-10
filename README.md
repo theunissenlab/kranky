@@ -4,10 +4,8 @@ Kranky is a stimulus presentation system rolled in python to control the playbac
 
 kranky is compatible with instructions for krank, a stimulus presenter and data acquisition program developed in the doupe lab. 
 
-
 ## usage: 
 see ./kranky -h
-
 ## .rc file
 The .rc file describes the stimuli and trial parameters.  Parameters can also be entered as arguments to in the call to kranky, which override the .rc file specifications (see ./kranky -h). Stimuli are added with 
 ```
@@ -66,7 +64,23 @@ Kranky can also write to a wav file:
 
 
 
+## Arguments / Parameters:  
+The parameters are as follows: 
+data_dir  [defaults to current directory]
+n_trials [defaults to 100]
+trigger_channel [defaults to 3]
+record_control_channel [defaults to 2]
+stim_order [defaults to 2]
+cardidx: [defaults to 'comedi' if comedi is installed, otherwise to card 0]
+aad_channel: [defaults to None]
+stim_dir [defaults to jeff's folder /home/jknowles/data/doupe_lab/stimuli sorry!]
+n_ao_channels: [defaults to 4]
+ao_freq [defaults to 40000]
+wav: [defaults to false]
+do_aad [defaults to false]
+require_data [defaults to true]
 
+see ./kranky -h (print out below) for information about each parameter
 ```
 #!bash
 ./kranky -h
