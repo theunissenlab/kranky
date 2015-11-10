@@ -182,8 +182,8 @@ def parse_stim(params,parts):
                 else:
                     raise Exception('Error in ''stim add'' command format for part:\n %s' % (part))
             stim['ttlchs'].append(ch)
+            stim_name_parts.append('ttl%d:%s/%s' % (stim['n_ttlchs'],ch['stimset'], ch['name']))
             stim['n_ttlchs']+=1
-            stim_name_parts.append('ttl:%s/%s' % (ch['stimset'], ch['name']))
         else: # otherwise its an analog channel. always double chcek your channels before she blows
             ch={}
             ch['type']='ao'
@@ -200,8 +200,8 @@ def parse_stim(params,parts):
             else:
                 raise Exception('Error in ''stim add'' command format for part:\n %s' % (part))
             stim['aochs'].append(ch)
+            stim_name_parts.append('ao%d:%s/%s' % (stim['n_aochs'],ch['stimset'], ch['name']))
             stim['n_aochs']+=1
-            stim_name_parts.append('ao:%s/%s' % (ch['stimset'], ch['name']))
             pass
     stim['name'] = '-'.join(stim_name_parts)
     verify_stim(params,stim)
