@@ -70,6 +70,7 @@ Kranky can also write to a wav file:
 
 ## Arguments / Parameters:  
 The parameters are as follows: 
+```
 data_dir  [defaults to current directory]
 n_trials [defaults to 100]
 trigger_channel [defaults to 3]
@@ -83,7 +84,7 @@ ao_freq [defaults to 40000]
 wav: [defaults to false]
 do_aad [defaults to false]
 require_data [defaults to true]
-
+```
 see ./kranky -h (print out below) for information about each parameter
 ```
 #!bash
