@@ -45,7 +45,7 @@ If kranky can't find the file with the path in the rc file, it will look for the
 .rec files are a record of the playback and capture for future analysis. kranky saves .pbrec files which contain all the information about the stimulus presentation as it happens in 'data_dir', or inside the directory containing open-ephys data if it finds that directory in 'data-dir'. After an aquisition, the matlab function 'analysis_tools/write_kranky_recfile.m'  will parse the digital trigger data from open-ephys and write a '.rec' file, which is .pbrec plus ai clock samples when the stimuli happened.
 
 ## trigger system
-(will write up soon). 
+kranky automatically generates ttl trigger signals at the start of each trial to input into open-ephys/intan digital inputs. The trigger is basically like a serial pulse that contains three s
 
 ## open ephys and record control
 kranky is built to run along with a special version of open ephys.  You can download my fork here:
