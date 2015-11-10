@@ -6,12 +6,19 @@ kranky is compatible with instructions for krank, a stimulus presenter and data 
 
 
 ## usage: 
-(see python kranky -h)
-
+see ./kranky -h
 
 ## .rc file
-The .rc file describes the stimuli and trial parameteres.  Arguments can also be entered in the call to kranky, which override the .rc file specifications
-
+The .rc file describes the stimuli and trial parameters.  Parameters can also be entered as arguments to in the call to kranky, which override the .rc file specifications (see ./kranky -h). Stimuli are added with 
+```
+stim add stim1 stim2...  
+```
+By default, stimuli are assumed analog out channels unless they are specified as ttl:
+```
+stim add aostim0.wav ttl-ttlstim0.wav
+stim add ao-aostim0.wav ttl-ttlstim0.wav
+```
+these two entries are equivalent.  
 
 ```
 ### example rc file
@@ -25,9 +32,6 @@ stim add /tazo/jknowles/stimuli/probe_songs2/probe_songs2_song1flipped.raw
 set ao_freq 40000
 set n_trials 10
 set stim_order 2
-
-
-
 ```
 
 
