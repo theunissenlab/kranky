@@ -1,7 +1,7 @@
 
 
 # stim list
-set ao_freq 44100
+set ao_freq 40000
 set ai_freq 32000
 set n_trials 10
 set stim_order 2
