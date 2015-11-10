@@ -1,16 +1,12 @@
 
 
-stim add /stimuli/exa1_motif_stimset_b_30/exa1_song_b_1.wav
-
-
-
 # stim list
-set ao_freq 40000
+set ao_freq 44100
 set ai_freq 32000
 set n_trials 10
 set stim_order 2
-set ramp_time 0
-set attenuation 15
-set attenuation2 0
+set stim_dir /home/jknowles/data/doupe_lab/stimuli
 
-
+stim add /stimuli/exa1_motif_stimset_b_30/exa1_song_b_1.wav
+stim add baddir/stimuli/exa1_motif_stimset_b_30/exa1_song_b_2.wav
+stim add /home/jknowles/data/doupe_lab/stimuli/exa1_motif_stimset_b_30/exa1_song_b_3.wav

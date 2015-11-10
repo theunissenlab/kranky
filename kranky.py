@@ -11,9 +11,15 @@ import threading
 import alsaaudio as aa
 import traceback
 import argparse
-
+import warnings
+def custom_formatwarning(msg, *a):
+    # ignore everything except the message
+    return 'Warning: %s\n\n' % str(msg) 
+warnings.formatwarning = custom_formatwarning
+warnings.has_warned = False
 # from lib import zmq_tools as zt
 from lib.fifo import FifoFileBuffer
+# try and import comediwriter
 try:
     from lib.pycomedi_tools import ComediWriter, run_aad_thread, aad_factor, aad_offset
 except ImportError as e:
@@ -92,29 +98,57 @@ class PlaybackController(object):
             return True
 
 
-def load_rc_file(fname, stimuli_dir=None):
-    params = dict(default_params)
+def load_rc_file(params, fname):
     stimset = {}
     stimset['stims'] = []
+    # parse all params first then stimuli
+    rc_data = load_rc_lines(fname)
+    for item_parts in rc_data['param_lines']:
+        params = parse_rc_param(params, item_parts)
+    stim_count = 0
+    for item_parts in rc_data['stim_lines']:
+        if len(item_parts) > 2 and item_parts[1] == 'add':
+            stim = parse_stim(params, item_parts[2:])
+            verify_stim(params,stim)
+            stimset['stims'].append(stim)
+            stimset['stims'][stim_count]['stim_idx'] = stim_count
+            stim_count += 1
+    if warnings.has_warned:
+        time.sleep(1)
+    # params, stimset = parse_rc_line(line, params, stimset) # returned for transparency
+    return params, stimset
+def load_rc_lines(fname):
+    rc_data={}
+    rc_data['param_lines']=[]
+    rc_data['stim_lines']=[]
     with open(fname) as rcfid:
         for line in rcfid:
-            params, stimset = parse_rc_line(line, params, stimset,stimuli_dir=stimuli_dir) # returned for transparency
-    return params, stimset
+            if len(line.strip('\n'))>0:
+                parts = line.strip('\n').split(' ')
+                parts = [part for part in parts if len(parts)>0]
+                if parts[0].lower() == 'stim':
+                    rc_data['stim_lines'].append(parts)
+                elif parts[0].lower() == "set":
+                    if len(parts)>2:
+                        rc_data['param_lines'].append(parts)
+    return rc_data
 
-def parse_rc_line(line, params, stimset,stimuli_dir=None):
-    if len(line.strip('\n'))>0:
-        parts = line.strip('\n').split(' ')
-        parts = [part for part in parts if len(parts)>0]
-        if parts[0].lower() == 'stim':
-            if len(parts) > 2 and parts[1] == 'add':
-                    stim = parse_stim(params, parts[2:])
-                    verify_stim(params,stim)
-                    stimset['stims'].append(stim)
-                    stimset['stims'][len(stimset['stims'])-1]['stim_idx'] = len(stimset['stims'])-1
-        elif parts[0].lower() == "set":
-            if len(parts)>2:
-                params[parts[1]] = int(parts[2]) ###### make this parse different formats 
-    return params, stimset # for transparency
+def parse_rc_param(params, item_parts):
+    if len(item_parts)>2:
+        key = str(item_parts[1])
+        param = item_parts[2]
+        if key in params.keys():
+            t_default = type(params[key])
+        else:
+            warnings.warn('No such param %s, Ignoring' % key)
+            warnings.has_warned = True
+            return params
+        try:
+            param = t_default(param)
+        except:
+            raise(Exception('Unable to cast rc param %s=%s as correct type. Should be %s' % (key, param, str(t_default))))
+        params[key]=param
+    return params
 
 def parse_stim(params,parts):
     stim = {}
@@ -130,8 +164,8 @@ def parse_stim(params,parts):
             name = os.path.basename(fname)
             head,tail = os.path.split(os.path.dirname(fname))
             stimset = tail
-            if check_if_fname_exists(fname) is not False:
-                ch['fname']=check_if_fname_exists(fname)
+            if check_if_fname_exists(params,fname,stimset,name) is not False:
+                ch['fname']=check_if_fname_exists(params, fname)
                 ch['type']='file-ttl'
                 ch['command']=None
                 ch['fname']=fname
@@ -157,8 +191,8 @@ def parse_stim(params,parts):
             name = os.path.basename(fname)
             head,tail = os.path.split(os.path.dirname(fname))
             stimset = tail
-            if check_if_fname_exists(fname,stimset,name,stimuli_dir) is not False:
-                ch['fname']=check_if_fname_exists(fname,stimset,name,stimuli_dir)
+            if check_if_fname_exists(params,fname,stimset,name) is not False:
+                ch['fname']=check_if_fname_exists(params,fname,stimset,name)
                 ch['command']=None
                 ch['stimset']=stimset
                 ch['name']=name
@@ -173,10 +207,13 @@ def parse_stim(params,parts):
     verify_stim(params,stim)
     return stim
 
-def check_if_fname_exists(fname,stimset,name,stimuli_dir):
+def check_if_fname_exists(params,fname,stimset,name):
     # if can't find the file, try looking in the "stim" directory
-    if not os.path.exists(fname) and stimuli_dir is not None:
-        working_one = os.path.join(stimuli_dir, stimset, name)
+    if not os.path.exists(fname):
+        if params['stim_dir'] is not None:
+            working_one = os.path.join(params['stim_dir'], stimset, name)
+            if not os.path.exists(working_one):
+                raise Exception('Could not find stim in original path:\n%s or stim_dir path:\n %s' % (fname, working_one))
     else:
         working_one = fname
     return working_one
@@ -218,20 +255,19 @@ def load_wf(params, fname):
         dt = np.dtype('int16').newbyteorder('>')
         wf = np.fromfile(fid, dtype = dt)
         fid.close()
-
     elif fname[-4:] == '.wav':
         wfid = wave.open(fname,'r')
         # wlen = wave.getnframes()
-        wf = np.array(wfid.readframes(-1))
+        wf = wfid.readframes(-1)
         if wfid.getsampwidth() == 2:
-            # import ipdb; ipdb.set_trace()
-            wf = np.fromstring(str(wf), dtype=np.int16)
+            wf = np.fromstring(wf, dtype=np.int16)
         elif wfid.getsampwidth() == 4:
-            wf = np.fromstring(str(wf), dtype=np.int32)
+            wf = np.fromstring(wf, dtype=np.int32)
         else:
             error('bytesize not supported')
         if wfid.getframerate() != params['ao_freq']:
-            raise(Exception('Frame rate of file %s does not match ao_rate\n ao_rate=%d\n file rate=%d' % (fname, params['ao_freq'],wfid.getframerate())))
+            warnings.warn('Frame rate of file %s does not match ao_rate:\n kranky rate=%d file rate=%d' % (fname, params['ao_freq'],wfid.getframerate()))
+            warnings.has_warned = True
         wfid.close()
     else: 
         raise(Exception('Unknown file type'))
@@ -532,7 +568,10 @@ def data_loader(pbc):
                         print "Trial %d:  %s" % (trial['ktrial'], trial['stim']['name'])
                         pbc.message_queue.put('trial[%d]: stim_index=%d; ao_range=[%d, %d]\n' % (trial['ktrial'], trial['stim']['stim_idx'], sample_count, sample_count+trial['data'].shape[1]))
                     elif trial['ktrial']==-1:
-                        print "Sending Record Control Signal"
+                        if pbc.params['record_control_channel']>=0:
+                            print "Sending Record Control Signal on channel %d" % pbc.params['record_control_channel']
+                        elif pbc.params['do_aad']:
+                            print "Sending Record Control Signal on aad channel %d" % abs(pbc.params['record_control_channel'])
                     sample_count += trial['data'].shape[1]
 
                     
@@ -683,7 +722,7 @@ def run_playback(cardidx, params, stimset, playback_plan, data_path_root="/home/
 
 
 if __name__=="__main__":
-    # set overall default commands
+    # set overall default commands. These are overridden by rc file and then parser 
     default_params = {}
     default_params['ao_freq'] = 40000
     default_params['n_trials'] = 100
@@ -697,7 +736,7 @@ if __name__=="__main__":
     default_params['trigger_channel']=3
     default_params['n_ao_channels'] = 4
     default_params['data_dir'] = os.getcwd()
-    default_params['stim_dir'] = '/home/jknowles/data/doupe_lab/stimuli/'
+    default_params['stim_dir'] = '/hoe/jknowles/data/doupe_lab/stimuli/'
     parser=argparse.ArgumentParser(prog='kranky')
     parser.description = 'Stimuluis Presenter for Neuroscience Experiments. Jeff Knowles, 2015; jeff.knowles@gmail.com'
     parser.epilog =  'Note: All optional arguments may also be entered into the rc file, with _ replacing - (eg data_dir instead of --data-dir)'
@@ -709,38 +748,28 @@ if __name__=="__main__":
     parser.add_argument('-d','--data-dir',type=str,help='directory to look for data dir from data capture software')
     parser.add_argument('-s','--stim-dir',type=str,help='directory containing stim-sets.  If the exact directory passed in the rc file isnt found, kranky looks for the stimset here.')
     parser.add_argument('-o','--stim-order',type=int,help='How to order the stimuli. 0=in the order provided 2=randomly interleaved')
-    parser.add_argument('--trigger-channel',type=int, help='Channel for timing trigger signal. If ch > 0, the signal is routed through analog output on the channel provided.  If trigger_channel < 0, the trigger is produced on an aad-ch, encoded on the aad output channel')
-    parser.add_argument('--record-control-channel',type=int,help='Channel for recording control signal. If ch > 0, the signal is routed through analog output on the channel provided.')
+    parser.add_argument('--trigger-channel',type=int, help='Channel for timing trigger signal. If ch > 0, the signal is routed through analog output on the channel provided.  If ch < 0, the trigger is produced on an aad-ch, encoded on the aad output channel')
+    parser.add_argument('--record-control-channel',type=int,help='Channel for recording control signal. If ch > 0, the signal is routed through analog output on the channel provided. If ch < 0, the record control is produced on an aad-ch, encoded on the aad output channel.')
     parser.add_argument('--do-aad', type = int,help='Specify whether to route channels through aad (analog->analog->digital.  If do_aad is false, then all negative channel numbers are ignored')
     parser.add_argument('--aad-channel',type=int, help='Channel for aad (analog->analog->digital) output. Four ttl channels are encoded in one analog channel. If ch > 0, the signal is routed through analog output on the channel provided.  If trigger_channel < 0, the trigger is produced on an aad-ch, encoded on the aad output channel')
     parser.add_argument('--ao-freq',type=int)
     parser.add_argument('--n-ao-channels',type=int)
     parser.add_argument('--wav',help='write a .wav file instead of doing playback')
-
-
     args = vars(parser.parse_args())
     rc_fname = args['rc_fname']
+    params = default_params
     if args['stim_dir'] is not None:
-        stimuli_dir = args['stim_dir']
-    else:
-        stimuli_dir = default_params['stim_dir']
-    # get params and stimset from rc
-    params, stimset = load_rc_file(rc_fname, stimuli_dir=stimuli_dir)
-    # override defaults with params
-    paramsout = default_params
-    for param in params.keys():
-        paramsout[param]=params[param]
-    params=paramsout
-    # override  params with args
+        params['stim_dir'] = args['stim_dir']
+    # get params and stimset from rc, overriding default params
+    params, stimset = load_rc_file(params, rc_fname)
+    # override params from defaults and rc file with args from parser
     for arg in args.keys():
         if args[arg] is not None:
             params[arg]=args[arg]
-    if 'ai_freq' in params.keys():
-        params.pop('ai_freq')
     for stim in stimset['stims']:
         verify_stim(params, stim)
-
     # print params
+    print "Params:"
     for key in params.keys():
         print '%s: %s' % (key, str(params[key]))
     if False:
