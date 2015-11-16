@@ -1,4 +1,4 @@
-function write_kranky_recfile(datapath)
+function recname=write_kranky_recfile(datapath)
 
 
 % load pbrec file

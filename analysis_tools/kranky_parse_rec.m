@@ -44,9 +44,12 @@ while 1
   elseif strmatch('format:',tline)
       stuff=strread(tline,'format: %s','delimiter','');
       rec.format=stuff{1}; 
-  elseif findstr(':',tline)
-    [param, val] = strread(tline,'%s%s','delimiter',':');
-    pvpair = [pvpair; cellstr([param,val])];
+  elseif findstr(': ',tline)
+    idx = strfind(tline,': ');
+    param =tline(1:idx-1); 
+    val = tline(idx+2:end);
+   %[param, val] = strread(tline,'%s%s','delimiter',': ');
+    pvpair = [pvpair; {param,val}];
 %  elseif findstr('=',tline)
 %    [param, val] = strread(tline,'%s%s',-1,'delimiter','=');
 %    pvpair = [pvpair; cellstr([param,val])];
