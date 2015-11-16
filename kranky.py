@@ -8,7 +8,6 @@ import datetime
 import time
 import Queue
 import threading
-import alsaaudio as aa
 import traceback
 import argparse
 import warnings
@@ -17,21 +16,25 @@ def custom_formatwarning(msg, *a):
     return 'Warning: %s\n\n' % str(msg) 
 warnings.formatwarning = custom_formatwarning
 warnings.has_warned = False
-# from lib import zmq_tools as zt
-from lib.fifo import FifoFileBuffer
+
+try: 
+    import alsaaudio as aa
+except:
+    aa = None
 # try and import comediwriter
 try:
     from lib.pycomedi_tools import ComediWriter, run_aad_thread, aad_factor, aad_offset
 except ImportError as e:
     ComediWriter = None
 
+# import kranky stuff
+from lib.fifo import FifoFileBuffer
+# from lib import zmq_tools as zt
+
+
+# system settings
 trial_queue_size = 5 # FifoFileBuffernumber of trials to load into queue
-data_queue_size = 5
-
-
-# dtype_out = np.dtype(np.int16)
-# nbytes = dtype_out.itemsize
-# scale_factor = 2**(8*nbytes-1)-1
+data_queue_size = 5 
 
                  
 runflag = False
