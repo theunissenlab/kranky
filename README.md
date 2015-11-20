@@ -1,8 +1,8 @@
 ## Kranky
 
-Kranky is a stimulus presentation system rolled in python to control the playback of auditory stimuli in neuroscience experiments. It is easy to control and modify, and integrates with open-ephys.  
+Kranky is a stimulus presentation system rolled in python to control the playback of auditory stimuli in neuroscience experiments. It is easy to control and modify, and integrates with open-ephys. It is implemented with multi-layered threaded buffers that should stream to basically any devices without issue.    
 
-kranky is compatible with instructions for krank, a stimulus presenter and data acquisition program developed in the doupe lab. 
+kranky is compatible with instructions for krank, a stimulus presenter and data acquisition program developed in the doupe lab by [David Schleef ](http://schleef.org/). 
 
 ## usage: 
 see ./kranky -h
@@ -55,17 +55,25 @@ https://github.com/Jeffknowles/GUI.  This fork has minor changes from the main v
 
 You can use either open-ephys format or kwik format (selected in open ephys). The kranky/analysis_tools are written for the open-ephys format.  Apparently there are some issues with the (otherwise superior) kwik format getting corrupted.  See discussion [here](https://groups.google.com/forum/#!topic/klustaviewas/LmeDzuQLxgM)
 
+The open-ephys folks did a great job making an adaptable data aquisition GUI for neural data.  An example open-ephys configuration file for use with kranky is provided with my fork.  
+
 ## analog output
 Kranky is built to write output using alsa or comedi.  However, the program is constructed in such a way that makes it easy build a ao thread to play out in other systems.
 
 ## digital output
-(will write up soon)
+Kranky provides several options for time locked digital outputs depending on your requirements and hardware. In general, most (inexpensive) devices don't do a great job of streaming out digital outputs time locked with analog outputs. 
+### analog output as ttl
+If only a few digital outputs are required (ie record control, time/trial trigger, you can use analog channels as de-facto ttl channels. Kranky makes this easy and takes care of controlling the range of an analog signal to 
+### "analogO->analogI-> Digital" (aad) 
+Another option I came up with is to use an analog output to encode several ttl outputs. The most significant bits of the analog output encode the state of several (I have used up to 4) digital outputs. The decoding of this signal can be implemented with lots cheap hardware options, but kranky includes code to run on an arduino to read in analog signal and write out a digital signal. A basic arduino uno will do this with a 15us period, which is equivilent to ~66KhZ which is overkill or anything but the most Jim Simmonsesque applications.  
+### Streaming Digital Outputs 
+A third option if your hardware supports simultaneous streaming of analog and digital signals is to just stream out the digital.  Let me know if you find a cheap option that does this well!  I have thought about hacking apart a single analog output on a sound card as this would provide DO's implemented as AAD without the need to send it through a decoder.  
 
+ 
 ## output to .wav file
-Kranky can also write to a wav file:  
+Kranky can also write to a wav file from kranky:  
 
 	python kranky.py test.rc --wav
-
 
 
 ## Arguments / Parameters:  
