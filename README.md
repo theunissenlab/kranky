@@ -55,7 +55,7 @@ https://github.com/Jeffknowles/GUI.  This fork has minor changes from the main v
 
 You can use either open-ephys format or kwik format (selected in open ephys). The kranky/analysis_tools are written for the open-ephys format.  Apparently there are some issues with the (otherwise superior) kwik format getting corrupted.  See discussion [here](https://groups.google.com/forum/#!topic/klustaviewas/LmeDzuQLxgM)
 
-The open-ephys guys did a great job making an adaptable data aquisition GUI for neural data.  An example open-ephys configuration file for use with kranky is provided with my fork.  
+The open-ephys folks did a great job making an adaptable data aquisition GUI for neural data.  An example open-ephys configuration file for use with kranky is provided with my fork.  
 
 ## analog output
 Kranky is built to write output using alsa or comedi.  However, the program is constructed in such a way that makes it easy build a ao thread to play out in other systems.
