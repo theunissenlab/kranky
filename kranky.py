@@ -1,3 +1,4 @@
+# import python dependencies 
 import numpy as np
 import scipy as sp
 import struct
@@ -17,6 +18,7 @@ def custom_formatwarning(msg, *a):
 warnings.formatwarning = custom_formatwarning
 warnings.has_warned = False
 
+# import 
 try: 
     import alsaaudio as aa
 except:
@@ -55,7 +57,10 @@ class PlaybackController(object):
     def connect_to_pcm(self, cardidx):
         if self.pcm is not None:
             pass
-        self.pcm = aa.PCM(type=aa.PCM_PLAYBACK, mode=aa.PCM_NORMAL, card='plughw:%d,0'%cardidx)
+        if aa is not None:
+            self.pcm = aa.PCM(type=aa.PCM_PLAYBACK, mode=aa.PCM_NORMAL, card='plughw:%d,0'%cardidx)
+        else:
+            raise Exception('Alsaaudio is not installed on this machine. Select alternative daq driver')
         # self.pcm = aa.PCM(type=aa.PCM_PLAYBACK, mode=aa.PCM_NORMAL, card='plughw:%d,0'%cardidx)
         self.pcm.setchannels(self.params['n_ao_channels'])
         self.pcm.setrate(self.params['ao_freq'])
@@ -84,7 +89,11 @@ class PlaybackController(object):
     def connect_to_comedi(self,cardidx=None):
         if self.pcm is not None:
             pass
-        self.pcm = ComediWriter(dfname = '/dev/comedi0',n_ao_channels = self.params['n_ao_channels'],rate=self.params['ao_freq'],chunk_size=self.periodsize)
+        if ComediWriter is not None:
+            self.pcm = ComediWriter(dfname = '/dev/comedi0',n_ao_channels = self.params['n_ao_channels'],rate=self.params['ao_freq'],chunk_size=self.periodsize)
+        else:
+            raise Exception('Comedi and pycomedi is not installed on this machine. Select alternative daq driver')
+
         self.pcm_type = 'comedi'
         self.dtype_out = np.dtype(self.pcm.ao_dtype)
         self.ttl_height_rel = 0.5
