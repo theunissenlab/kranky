@@ -68,15 +68,10 @@ Another option I came up with is to use an analog output to encode several ttl o
 A third option if your hardware supports simultaneous streaming of analog and digital signals is to just stream out the digital.  Let me know if you find a cheap option that does this well!  I have thought about hacking apart a single analog output on a sound card as this would provide DO's implemented as AAD without the need to send it through a decoder.  
 
  
-(will write up soon)
-### streaming digital outs
-If your hardware 
-
 ## output to .wav file
-Kranky can also write to a wav file:  
+Kranky can also write to a wav file from kranky:  
 
 	python kranky.py test.rc --wav
-
 
 
 ## Arguments / Parameters:  
