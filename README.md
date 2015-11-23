@@ -67,6 +67,14 @@ If only a few digital outputs are required (ie record control, time/trial trigge
 ### "analogO->analogI-> Digital" (aad) 
 Another option I came up with is to use an analog output to encode several ttl outputs. The most significant bits of the analog output encode the state of several (I have used up to 4) digital outputs. The decoding of this signal can be implemented with lots cheap hardware options, but kranky includes code to run on an arduino to read in analog signal and write out a digital signal (kranky/lib/arduino_aad). A basic arduino uno will do this with a 15us period, which is equivilent to ~66KhZ which is overkill or anything but the most Jim Simmonsesque applications. Faster processes would even make Jim happy!
 
+To use AAD with an arduino: 
+0) deploy [kranky/lib/arduino_aad](https://bitbucket.org/spikeCoder/kranky/src/master/lib/arduino_aad/arduino_aad.ino) to an arduino and connect aad channel to Ai0.  
+1) turn on AAD in kranky (--do-aad 1) 
+2) turn set AAD Channel
+3) now any digital channels will be encoded as aad
+4) to send record control and or trigger over aad, use negative channel numbers
+
+
 ### Streaming Digital Outputs 
 A third option if your hardware supports simultaneous streaming of analog and digital signals is to just stream out the digital.  Let me know if you find a cheap option that does this well!  I have thought about hacking apart a single analog output on a sound card as this would provide DO's implemented as AAD without the need to send it through a decoder.  
 
