@@ -23,10 +23,13 @@ srfpga_logic = strcmp(sessioninfo.processors(:,2),'Sources/Rhythm FPGA');
 has_channels_logic = ~cellfun(@isempty,sessioninfo.processors(:,3));
 srfpga_idx = processer_idxs(srfpga_logic & has_channels_logic);
 bpf_idx = processer_idxs(bpf_logic & has_channels_logic);
-if ~isempty(srfpga_idx)
+if ~isempty(bpf_idx)
     spike_processor = sessioninfo.processors{bpf_idx(1),1};
     
+elseif ~isempty(srfpga_idx)
+    lfp_processor = sessioninfo.processors{srfpga_idx(1),1};
 end
+
 if ~isempty(srfpga_idx)
     lfp_processor = sessioninfo.processors{srfpga_idx(1),1};
 end
