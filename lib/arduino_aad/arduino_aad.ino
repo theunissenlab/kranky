@@ -1,6 +1,6 @@
 
 #define FASTADC 1
-#define DOTIMER 1
+#define DOTIMER 0
 // defines for setting and clearing register bits
 #ifndef cbi
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
@@ -56,7 +56,7 @@ void loop(){
 #endif
 
 //  analogval = analogRead(analog_pin)>>6;
-  analogval = B00100001;
+// analogval = B00100001;
 
   PORTB = analogval<<2;
   
