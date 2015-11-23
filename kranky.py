@@ -289,7 +289,6 @@ def load_wf(params, fname):
 def generate_playback_plan(params, stimset):
     playback_plan = {}
     playback_plan['trials']=[]
-
     trial_list = np.array([])
     if params['stim_order'] == 0: # generate trials in given order
         while len(trial_list) < params['n_trials']:
@@ -515,7 +514,7 @@ def write_playback_audio_file(params, stimset, playback_plan, output_filename):
 def trial_loader(pbc, playback_plan):
     global runflag, playflag
     # add intro
-    trial = load_trial_data(pbc, {},-1,record_control_trial=True)
+    trial = load_trial_data(pbc, {},-1,record_control_trial=True, record_control_trial_length = 1 + pbc.params['intro_length'])
     pbc.trial_queue.put(trial)
     playflag = True
     # loop thru trials, adding to que
@@ -731,6 +730,7 @@ if __name__=="__main__":
     default_params['n_ao_channels'] = 4
     default_params['data_dir'] = os.getcwd()
     default_params['stim_dir'] = '/home/jknowles/data/doupe_lab/stimuli/'
+    default_params['intro_length']=0.
     parser=argparse.ArgumentParser(prog='kranky')
     parser.description = 'Stimuluis Presenter for Neuroscience Experiments. Jeff Knowles, 2015; jeff.knowles@gmail.com'
     parser.epilog =  ('Note: All optional arguments may also be entered into the rc file, by ommiting -- and replacing - ' + \
@@ -751,6 +751,7 @@ if __name__=="__main__":
     parser.add_argument('--ao-freq',type=int)
     parser.add_argument('--n-ao-channels',type=int)
     parser.add_argument('--wav',help='write a .wav file instead of doing playback')
+    parser.add_argument('-i','--intro-length',type=float)
     args = vars(parser.parse_args())
     rc_fname = args['rc_fname']
     params = default_params
