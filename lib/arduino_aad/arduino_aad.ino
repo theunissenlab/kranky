@@ -23,7 +23,7 @@ long lasttime=0;
 void setup()
 {
 #if FASTADC
-  // set prescale to 16
+  // set prescale to 16.  This speeds up the analog read dramatically
   cbi(ADCSRA,ADPS2) ;
   sbi(ADCSRA,ADPS1) ;
   sbi(ADCSRA,ADPS0) ;
@@ -40,7 +40,7 @@ void setup()
 
 
 void loop(){
-#if DOTIMER
+#if DOTIMER // all this code is for timing the loop.  Doesn't normally execute
   count = count + 1;
   if (count >= timercount)
   {
@@ -54,10 +54,11 @@ void loop(){
     count = 0; 
   }
 #endif
-
-//  analogval = analogRead(analog_pin)>>6;
+  
+  // this line reads the analog value and shifts the bits by 6
+  analogval = analogRead(analog_pin)>>6;
 // analogval = B00100001;
-
+  // this writes the analog value to portB which is channels 8-13
   PORTB = analogval<<2;
   
 
